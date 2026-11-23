@@ -34,6 +34,10 @@ concurrency:
   group: build-apk-${{ github.ref }}
   cancel-in-progress: true
 
+# Commit comments with the failure log need write access.
+permissions:
+  contents: write
+
 env:
   FLUTTER_VERSION: "3.24.5"
 
@@ -98,6 +102,46 @@ jobs:
             analyze.log
             test.log
           if-no-files-found: ignore
+
+      # Artifacts and job logs live on a blob host that some networks cannot
+      # reach, so a failing run also posts its output as a commit comment —
+      # readable anywhere the repository is.
+      - name: Publish failure details
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### CI failure for ${GITHUB_SHA:0:7}"
+            echo
+            echo '```'
+            tail -n 250 analyze.log 2>/dev/null || echo "no analyze output"
+            echo '```'
+            echo
+            echo '```'
+            tail -n 250 test.log 2>/dev/null || echo "no test output"
+            echo '```'
+          } > ci-failure.md
+
+          python3 - <<'PY'
+          import json, os, pathlib, urllib.request
+
+          body = pathlib.Path("ci-failure.md").read_text(encoding="utf-8")
+          data = json.dumps({"body": body[:60000]}).encode()
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}"
+              f"/commits/{os.environ['GITHUB_SHA']}/comments",
+              data=data,
+              headers={
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "Accept": "application/vnd.github+json",
+                  "Content-Type": "application/json",
+              },
+          )
+          with urllib.request.urlopen(request) as response:
+              print("commit comment posted:", response.status)
+          PY
 
   apk:
     name: Android APK
