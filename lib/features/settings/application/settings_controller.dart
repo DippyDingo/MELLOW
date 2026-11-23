@@ -87,6 +87,15 @@ class SettingsController extends AsyncNotifier<AppSettings> {
   Future<void> setAppLockEnabled(bool enabled) =>
       _update((s) => s.copyWith(appLockEnabled: enabled));
 
+  Future<void> setUpdateCheckEnabled(bool enabled) =>
+      _update((s) => s.copyWith(updateCheckEnabled: enabled));
+
+  Future<void> setUpdateOnMobileData(bool enabled) =>
+      _update((s) => s.copyWith(updateOnMobileData: enabled));
+
+  Future<void> setUpdateNotificationsEnabled(bool enabled) =>
+      _update((s) => s.copyWith(updateNotificationsEnabled: enabled));
+
   Future<void> reset() async {
     await _repository.reset();
     final defaults = await _repository.getSettings();

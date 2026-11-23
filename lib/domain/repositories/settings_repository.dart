@@ -21,6 +21,9 @@ class AppSettings {
     this.syncOnLaunch = true,
     this.blockExternalImages = true,
     this.appLockEnabled = false,
+    this.updateCheckEnabled = true,
+    this.updateOnMobileData = true,
+    this.updateNotificationsEnabled = true,
   });
 
   final ThemePreference themePreference;
@@ -37,6 +40,15 @@ class AppSettings {
 
   final bool appLockEnabled;
 
+  /// Ask GitHub for a newer build at startup and every few hours.
+  final bool updateCheckEnabled;
+
+  /// Allow downloading a build over mobile data; otherwise Wi-Fi only.
+  final bool updateOnMobileData;
+
+  /// Show a system notification when a new build is found.
+  final bool updateNotificationsEnabled;
+
   AppSettings copyWith({
     ThemePreference? themePreference,
     bool? focusModeEnabled,
@@ -48,6 +60,9 @@ class AppSettings {
     bool? syncOnLaunch,
     bool? blockExternalImages,
     bool? appLockEnabled,
+    bool? updateCheckEnabled,
+    bool? updateOnMobileData,
+    bool? updateNotificationsEnabled,
   }) {
     return AppSettings(
       themePreference: themePreference ?? this.themePreference,
@@ -61,6 +76,10 @@ class AppSettings {
       syncOnLaunch: syncOnLaunch ?? this.syncOnLaunch,
       blockExternalImages: blockExternalImages ?? this.blockExternalImages,
       appLockEnabled: appLockEnabled ?? this.appLockEnabled,
+      updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
+      updateOnMobileData: updateOnMobileData ?? this.updateOnMobileData,
+      updateNotificationsEnabled:
+          updateNotificationsEnabled ?? this.updateNotificationsEnabled,
     );
   }
 
@@ -79,7 +98,10 @@ class AppSettings {
           other.notificationsFavoritesOnly == notificationsFavoritesOnly &&
           other.syncOnLaunch == syncOnLaunch &&
           other.blockExternalImages == blockExternalImages &&
-          other.appLockEnabled == appLockEnabled;
+          other.appLockEnabled == appLockEnabled &&
+          other.updateCheckEnabled == updateCheckEnabled &&
+          other.updateOnMobileData == updateOnMobileData &&
+          other.updateNotificationsEnabled == updateNotificationsEnabled;
 
   @override
   int get hashCode => Object.hash(
@@ -93,6 +115,9 @@ class AppSettings {
         syncOnLaunch,
         blockExternalImages,
         appLockEnabled,
+        updateCheckEnabled,
+        updateOnMobileData,
+        updateNotificationsEnabled,
       );
 }
 
