@@ -125,7 +125,15 @@ class UpdateController extends Notifier<UpdateState> {
   /// [automatic] applies the six-hour rule from the ТЗ: an automatic check is
   /// skipped when the previous one is recent, while a manual one always runs.
   Future<void> check({bool automatic = true}) async {
-    final AppSettings settings = ref.read(appSettingsProvider);
+    // Awaited, not read: while settings are still loading the synchronous
+    // provider answers with defaults, and «проверять обновления выключено»
+    // would be ignored on the very first launch after the user turned it off.
+    final AppSettings settings;
+    try {
+      settings = await ref.read(settingsControllerProvider.future);
+    } on Exception {
+      return;
+    }
     if (!settings.updateCheckEnabled) {
       state = const UpdateState(phase: UpdatePhase.idle);
       return;
