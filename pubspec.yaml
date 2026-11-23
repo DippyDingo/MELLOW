@@ -41,9 +41,14 @@ dependencies:
   url_launcher: ^6.3.0
 
   # Receiving the OAuth redirect: com.googleusercontent.apps.<id>:/oauth2redirect
-  # 6.x is the line that still supports Dart 3.5 / Flutter 3.24; 7.x needs
-  # Dart 3.12 and would break `flutter pub get` on this SDK.
-  app_links: ^6.4.1
+  # Pinned exactly, for two independent reasons:
+  #  * 7.x needs Dart 3.12 / Flutter 3.44 and would break `flutter pub get`;
+  #  * 6.4+ switched its android/build.gradle to the "Flutter Gradle plugin"
+  #    API (`flutter { compileSdkVersion … }`), which only exists from Flutter
+  #    3.29 — on Flutter 3.24 the APK build dies evaluating app_links.
+  # 6.3.3 is the last release with a self-contained Gradle script, and it
+  # already provides everything used here (`AppLinks().uriLinkStream`).
+  app_links: 6.3.3
 
 dev_dependencies:
   flutter_test:
