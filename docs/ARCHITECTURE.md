@@ -39,6 +39,7 @@
 | `domain/` | ничего из `lib/` | `flutter/material.dart`, `drift`, `features/`, `data/` |
 | `data/` | `domain/`, `core/` | `features/` |
 | `providers/` | `domain/`, `core/` | `features/`, `data/` |
+| `services/` | `domain/`, `providers/contracts`, `core/` | `features/`, `flutter/material`, `flutter/widgets` |
 | `features/` | всё ниже себя | другая фича (кроме общедоступных контроллеров) |
 | `app/` | всё | — |
 
@@ -67,16 +68,40 @@ lib/
 │   ├── repositories/              # Drift-реализации
 │   └── seed/demo_seed.dart        # демонстрационные данные для UI-прототипа
 ├── providers/
-│   ├── contracts/mail_provider.dart
+│   ├── contracts/mail_provider.dart, incremental_mail_provider.dart
+│   ├── gmail/                     # endpoints, api, parser, adapter
+│   ├── oauth/                     # pkce.dart, oauth_client.dart
+│   ├── mime/mime_builder.dart     # RFC 5322 для отправки
+│   ├── provider_factory.dart      # MailProviderKind → адаптер
 │   └── discovery/provider_discovery.dart
+├── services/
+│   └── sync/                      # mail_sync_service, sync_state_store,
+│                                  # conversation_router
 └── features/
     ├── accounts/       # состояние аккаунтов (application/)
     ├── conversations/  ├── contacts/  ├── favorites/
     ├── composer/       ├── messages/  ├── settings/  └── onboarding/
 ```
 
-Каталоги `services/` (sync, delivery, background, notification) появятся на
-этапах 03 и 07 — пустыми они не создаются.
+Каталоги `services/delivery` и `services/notifications` появятся на этапах 05 и
+07 — пустыми они не создаются.
+
+### 3.1. Границы модулей Sprint 03
+
+```
+features/onboarding  → providers/gmail, services/sync      (экраны входа)
+features/sync        → services/sync, providers/factory     (кнопка синхронизации)
+services/sync        → domain/repositories, providers/contracts
+providers/gmail      → providers/oauth, providers/mime, core
+providers/oauth      ↔ core/errors, http
+```
+
+* Ни один слой выше не знает про `googleapis.com`: URL-ы живут в
+  `gmail_endpoints.dart`.
+* `MailSyncService` принимает `MailProvider`, поэтому фейковый провайдер в
+  тестах — это тот же код, что работает с Gmail.
+* `ConversationRouter` — чистая функция от «что уже в базе», поэтому правила
+  группировки тестируются без БД.
 
 ## 4. DI и запуск
 
@@ -110,6 +135,11 @@ main() → bootstrap()
 | `threadByIdProvider` / `threadMessagesProvider` | `Future`/`Stream` | экран диалога |
 | `contactsProvider` / `contactByIdProvider` | `Stream`/`Future` | люди |
 | `unreadCountProvider` | `StreamProvider` | бейдж навигации |
+| `syncControllerProvider` | `StateNotifierProvider` | ручная синхронизация, стадии, итог |
+| `syncOnLaunchProvider` | `FutureProvider` | одна попытка синхронизации при старте |
+| `gmailConnectControllerProvider` | `StateNotifierProvider` | шаги подключения Gmail |
+| `secureTokenStorageProvider` | `Provider` | Keychain/Keystore (в тестах — in-memory) |
+| `syncStateStoreProvider` | `Provider` | курсоры и счётчик сбоев |
 
 Правило: контроллер не хранит копию данных, которые есть в потоке из базы.
 Запись → база → поток → UI.
@@ -126,8 +156,9 @@ GoRouter, пути собраны в `AppRoutes`:
 * `ShellRoute` — четыре вкладки (Диалоги, Люди, Избранное, Настройки) с нижней
   панелью и сохранением состояния;
 * поверх шелла: `/conversations/:id`, `/contacts/:id`, `/compose`,
-  `/settings/accounts`, `/settings/accounts/add`, `/settings/appearance`,
-  `/settings/privacy`, `/settings/about`.
+  `/settings/accounts`, `/settings/accounts/add`, `/settings/accounts/add/gmail`
+  (реальный OAuth-поток), `/settings/sync` (ручная синхронизация),
+  `/settings/appearance`, `/settings/privacy`, `/settings/about`.
 
 Никаких строковых путей в виджетах — только `AppRoutes.*`.
 

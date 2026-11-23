@@ -43,6 +43,13 @@ directory. Версия схемы: **1**.
 `UIDVALIDITY:UID`), `last_sync_at`, `last_full_sync_at`,
 `consecutive_failures`, `last_error`.
 
+Инварианты (реализованы в `SyncStateStore`):
+
+* `cursor` обновляется только после того, как пачка писем закоммичена;
+* инкрементальный проход не затирает `last_full_sync_at`;
+* сбой пишет `last_error` и увеличивает `consecutive_failures`, но сохраняет
+  последний рабочий курсор — повтор не теряет письма.
+
 ### `contacts`
 `id` PK, `display_name`, `avatar_path?`, `is_favorite`, `created_at`,
 `updated_at`.
@@ -73,6 +80,12 @@ directory. Версия схемы: **1**.
 ### `conversation_participants`
 `id` PK, `conversation_id` FK, `email`, `contact_id?`, `is_own_address`.
 Уникальность: `(conversation_id, email)`.
+
+Пишется только через `ThreadRepository.replaceParticipants` (идемпотентно,
+в одной транзакции). `contact_id` заполняется **по адресу**, а не по позиции в
+письме: у группового диалога несколько человек, и привязка всех к контакту
+отправителя была бы молчаливым искажением данных. Адреса без контакта остаются
+`null` до первого письма от них.
 
 ### `messages`
 | Колонка | Примечание |

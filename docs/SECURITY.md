@@ -12,9 +12,29 @@
 | Основной пароль почты | нигде, не запрашивается | — |
 | Тела писем | SQLite (локально) | внешние сервисы |
 
-Sprint 01 хранит только несекретные данные: `provider_settings` (хосты, порты,
-флаги). Провайдер `SecureTokenStorage` появится вместе с адаптерами (этап 03) и
-будет единственным способом чтения/записи секретов.
+Начиная с Sprint 03 секреты хранит `SecureTokenStorage`
+(`lib/domain/security/secure_token_storage.dart`), реализация —
+`FlutterSecureTokenStorage`:
+
+* iOS — Keychain с `first_unlock_this_device`: токен доступен после первой
+  разблокировки и не уезжает в iCloud-бэкап;
+* Android — `EncryptedSharedPreferences`;
+* ключи namespaced: `account.<id>.access_token`, `.refresh_token`, `.expires_at`,
+  `.app_password` — отключение одного аккаунта не задевает остальные;
+* `isAvailable()` делает пробную запись/чтение/удаление: сломанный Keystore
+  (бывает после сброса устройства) даёт `false`, а не падение;
+* в тестах используется `InMemoryTokenStorage` (в app никогда).
+
+OAuth-поток Gmail:
+
+* PKCE (S256) обязателен — публичный клиент без client secret;
+* `state` проверяется на возврате из браузера, иначе
+  `AccountAuthException` (защита от подмены redirect);
+* `prompt=consent` + `access_type=offline`, чтобы получить refresh-токен;
+* refresh-токен перезаписывается только когда Google его прислал — при
+  обновлении он не теряется;
+* `OAuthTokens.toString()` не печатает токен; тело ответа сервера в сообщения
+  об ошибке не попадает (только `error`-код).
 
 Правила:
 

@@ -31,8 +31,31 @@ final class AccountAuthException extends AppException {
 }
 
 /// Remote mail provider refused or failed the operation.
+///
+/// [statusCode] keeps the HTTP status when there was one, so callers can make
+/// protocol decisions (Gmail's 404 on an outdated `historyId`, 429 for rate
+/// limits) without subclassing the hierarchy — the hierarchy stays `sealed` and
+/// every adapter shares one error vocabulary.
 final class MailProviderException extends AppException {
-  const MailProviderException(super.message, {super.cause, super.stackTrace});
+  const MailProviderException(
+    super.message, {
+    this.statusCode,
+    super.cause,
+    super.stackTrace,
+  });
+
+  /// HTTP status of the failed request, when applicable.
+  final int? statusCode;
+
+  /// Worth retrying later with backoff (rate limit or server-side outage).
+  bool get isTransient {
+    final code = statusCode;
+    if (code == null) return false;
+    return code == 429 || code >= 500;
+  }
+
+  /// The provider no longer knows the cursor we hold.
+  bool get isCursorExpired => statusCode == 404 || statusCode == 410;
 }
 
 /// Invalid user input (email address, subject limits, ...).

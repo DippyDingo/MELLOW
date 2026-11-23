@@ -5,6 +5,7 @@ import 'package:mellow/app/navigation/router.dart';
 import 'package:mellow/core/theme/mellow_theme.dart';
 import 'package:mellow/core/theme/theme_mode_resolver.dart';
 import 'package:mellow/features/settings/application/settings_controller.dart';
+import 'package:mellow/features/sync/application/sync_controller.dart';
 
 /// Root widget: themes, localisation and the router.
 ///
@@ -19,6 +20,16 @@ class MellowApp extends ConsumerStatefulWidget {
 
 class _MellowAppState extends ConsumerState<MellowApp> {
   late final _router = createRouter();
+
+  @override
+  void initState() {
+    super.initState();
+    // One best-effort sync at startup when the user asked for it. The provider
+    // swallows failures: the first frame must never wait for the network.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(syncOnLaunchProvider);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -38,6 +38,21 @@ class ThreadFilter {
   }
 }
 
+/// One participant of a conversation as stored locally.
+class ThreadParticipant {
+  const ThreadParticipant({
+    required this.address,
+    this.contactId,
+    this.isOwnAddress = false,
+  });
+
+  final String address;
+  final String? contactId;
+
+  /// True for the user's own account address in this thread.
+  final bool isOwnAddress;
+}
+
 /// Persistence contract for conversations and their messages.
 abstract interface class ThreadRepository {
   /// Watches conversations newest-first, honouring [filter].
@@ -53,6 +68,33 @@ abstract interface class ThreadRepository {
   Future<List<Message>> getMessages(String threadId);
 
   Future<Message?> getMessage(String id);
+
+  /// Finds a stored message by its RFC `Message-ID` header.
+  ///
+  /// Used by the conversation engine to attach a reply to the right thread even
+  /// when the provider gives no thread id.
+  Future<Message?> findByMessageIdHeader(String messageIdHeader);
+
+  /// Finds a stored message by the provider's id within one account.
+  ///
+  /// This is how the sync engine asks "is this message already known?" without
+  /// relying on insert failures.
+  Future<Message?> findByProviderMessageId(
+    String accountId,
+    String providerMessageId,
+  );
+
+  /// Finds the conversation that carries [providerThreadId] for [accountId].
+  Future<MessageThread?> findByProviderThreadId(
+    String accountId,
+    String providerThreadId,
+  );
+
+  /// Replaces the participant list of a conversation (idempotent).
+  Future<void> replaceParticipants(
+    String threadId,
+    List<ThreadParticipant> participants,
+  );
 
   Future<MessageThread> saveThread(MessageThread thread);
 

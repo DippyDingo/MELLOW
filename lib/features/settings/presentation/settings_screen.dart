@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mellow/app/navigation/routes.dart';
 import 'package:mellow/core/theme/mellow_theme.dart';
 import 'package:mellow/core/widgets/mellow_scaffold.dart';
+import 'package:mellow/domain/entities/account.dart';
 import 'package:mellow/domain/repositories/settings_repository.dart';
 import 'package:mellow/features/accounts/application/accounts_controller.dart';
 import 'package:mellow/features/settings/application/settings_controller.dart';
@@ -62,6 +63,22 @@ class SettingsScreen extends ConsumerWidget {
                 subtitle: Text(_themeLabel(settings.themePreference)),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push(AppRoutes.appearance),
+              ),
+            ],
+          ),
+          const MellowSectionHeader('Синхронизация'),
+          _Group(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.sync),
+                title: const Text('Синхронизация'),
+                subtitle: Text(
+                  accounts.isEmpty
+                      ? 'Подключите аккаунт, чтобы получать письма'
+                      : _lastSyncLabel(accounts),
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(AppRoutes.sync),
               ),
             ],
           ),
@@ -136,6 +153,22 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// «Обновлено 5 минут назад» для самой свежей синхронизации.
+  static String _lastSyncLabel(List<Account> accounts) {
+    final stamps = accounts
+        .map((account) => account.lastSyncAt)
+        .whereType<DateTime>()
+        .toList()
+      ..sort();
+    if (stamps.isEmpty) return 'Ещё не синхронизировано';
+    final last = stamps.last;
+    final diff = DateTime.now().difference(last);
+    if (diff.inMinutes < 1) return 'Обновлено только что';
+    if (diff.inMinutes < 60) return 'Обновлено ${diff.inMinutes} мин назад';
+    if (diff.inHours < 24) return 'Обновлено ${diff.inHours} ч назад';
+    return 'Обновлено ${diff.inDays} дн назад';
   }
 
   static String _themeLabel(ThemePreference preference) {

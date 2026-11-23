@@ -81,12 +81,41 @@ STARTTLS-варианты (587/143) проектируются позже и т�
 
 Истёкший токен переводит аккаунт в `needsReauth`; UI показывает «Войти заново».
 
+### 5.1. Как устроен Gmail-адаптер
+
+| Файл | Ответственность |
+| --- | --- |
+| `providers/gmail/gmail_endpoints.dart` | URL-ы, scopes, id ярлыков — без логики |
+| `providers/oauth/pkce.dart` | verifier/challenge (S256), `state` |
+| `providers/oauth/oauth_client.dart` | обмен кода и refresh, `http.Client` инъектируется |
+| `providers/gmail/gmail_api.dart` | REST-вызовы, пагинация, повтор после 401 через refresh |
+| `providers/gmail/gmail_message_parser.dart` | чистая функция: JSON → `Message`, MIME-дерево, RFC 2047 |
+| `providers/gmail/gmail_mail_provider.dart` | `MailProvider` + `IncrementalMailProvider` |
+| `providers/mime/mime_builder.dart` | RFC 5322 для `raw` и будущего SMTP |
+
+Правила, которые нельзя нарушать при правках:
+
+* `state` из redirect сравнивается с ожидаемым — иначе `AccountAuthException`;
+  так же ведёт себя отказ пользователя (`error=access_denied`).
+* Refresh-токен сохраняется только в `SecureTokenStorage` и никогда не
+  логируется; `OAuthTokens.toString()` не печатает токен.
+* `401` от API — один повтор после refresh, не бесконечный цикл.
+* `404/410` на `history.list` — это «курсор устарел», а не «писем нет»;
+  вызывающий обязан перейти к полной сверке.
+* Bcc попадает только в SMTP-конверт (`MimePayload.envelopeBcc`), в заголовки —
+  никогда.
+* Парсер не бросает исключений на кривых письмах: пустые поля, отсутствие
+  `payload`, неизвестная кодировка → безопасные значения по умолчанию.
+
+Регистрация URL-схемы `com.googleusercontent.apps.<id>` для возврата из
+браузера описана в [`VERIFY.md`](VERIFY.md#5-подключение-реального-gmail).
+
 ## 6. Статус реализации
 
 | Адаптер | Статус |
 | --- | --- |
 | Контракт + capabilities | готово (Sprint 01) |
 | Определение провайдера | готово (Sprint 01) |
-| Gmail | Sprint 03 |
+| Gmail | **готово (Sprint 03)** — OAuth 2.0 + PKCE, Gmail API, historyId, MIME |
 | IMAP / SMTP (Яндекс, Mail.ru) | Sprint 06 |
 | Outlook | Sprint 06 |

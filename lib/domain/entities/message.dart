@@ -68,6 +68,7 @@ class Message {
   }
 
   Message copyWith({
+    String? threadId,
     String? subject,
     String? bodyText,
     String? bodyHtml,
@@ -79,7 +80,7 @@ class Message {
   }) {
     return Message(
       id: id,
-      threadId: threadId,
+      threadId: threadId ?? this.threadId,
       accountId: accountId,
       from: from,
       to: to,

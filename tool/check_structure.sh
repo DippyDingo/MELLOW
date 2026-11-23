@@ -4,7 +4,8 @@
 #  2. data/ and providers/ must not import features/;
 #  3. no feature may import another feature's presentation layer directly
 #     (public controllers are allowed);
-#  4. no hardcoded colours outside the theme directory.
+#  4. no hardcoded colours outside the theme directory;
+#  5. services/ stays UI-free and independent of features/ (AGENTS.md §3.1).
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
@@ -41,6 +42,11 @@ done < <(grep -rn "import 'package:mellow/features/" lib/features || true)
 # 4. colour literals outside core/theme
 if grep -rnE "Color\(0x" lib --include="*.dart" | grep -v "lib/core/theme/"; then
   report "hardcoded Color(0x...) outside core/theme"
+fi
+
+# 5. services/ must stay runnable outside the widget tree
+if grep -rnE "import 'package:(mellow/features|flutter/(material|cupertino|widgets))" lib/services; then
+  report "services/ imports Flutter UI or a feature"
 fi
 
 if [ "$fail" -eq 0 ]; then

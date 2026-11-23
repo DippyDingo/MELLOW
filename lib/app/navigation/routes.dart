@@ -16,6 +16,8 @@ abstract final class AppRoutes {
   static const String appearance = '/settings/appearance';
   static const String accounts = '/settings/accounts';
   static const String privacy = '/settings/privacy';
+  static const String sync = '/settings/sync';
+  static const String gmailConnect = '/settings/accounts/add/gmail';
   static const String about = '/settings/about';
 
   static String thread(String id) => '/conversations/$id';

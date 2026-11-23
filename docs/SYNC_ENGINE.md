@@ -84,11 +84,44 @@ UI обновляется автоматически (StreamProvider)
 В лог попадают только идентификаторы аккаунта, этап и тип ошибки. Тел писем и
 токенов в логах нет.
 
-## 8. План
+## 8. Реализация (Sprint 03)
+
+```
+MailSyncService.sync(account, provider, {fullSync, pageSize, maxPages})
+├── SyncStateStore.read(accountId)         → последний курсор
+├── incremental? (provider is IncrementalMailProvider)
+│   ├── _incrementalSync: changedMessageIds(cursor)
+│   │     null → cursorWasStale → _fullSync() (реконкайл)
+│   └── _persist(message) × N
+├── _fullSync: fetchMessages(cursor) постранично до maxPages
+├── syncState.saveCursor(...)   ← только после коммита пачки
+├── syncState.markAccountSynced(now)
+└── ошибки: AccountAuthException → needsReauth; AppException → error
+```
+
+Порядок `_persist` для каждого письма:
+
+1. контакт отправителя по адресу (не по имени), кроме собственного адреса;
+2. диалог: `ConversationRouter.resolve` — provider thread → `In-Reply-To` →
+   `References` (от новых к старым) → новый UUID; тема **никогда** не ключ;
+3. `upsertMessage` (дедупликация provider id → `Message-ID`);
+4. `replaceParticipants` по всем участникам диалога.
+
+Инварианты:
+
+* курсор не сохраняется, если пачка не записалась — повтор не теряет письма;
+* `lastFullSyncAt` не затирается инкрементальным проходом;
+* `maxPages` ограничивает один проход, чтобы первый запуск не висел вечно;
+* сервис не импортирует Flutter и потому может быть вынесен в isolate.
+
+Тесты: `test/services/mail_sync_service_test.dart` (in-memory Drift + фейковый
+провайдер), `test/services/conversation_router_test.dart`.
+
+## 9. План
 
 | Этап | Объём |
 | --- | --- |
-| 03 | каркас сервиса, Gmail-адаптер, начальная загрузка, курсор |
-| 04 | группировка цепочек, участники, контакты |
+| 03 ✅ | Gmail-адаптер, инкрементальная и полная синхронизация, курсор |
+| 04 | ручная коррекция диалогов, объединение контактов, история человека |
 | 06 | IMAP/Graph-адаптеры и их курсоры |
-| 07 | фон, восстановление после сбоев, уведомления |
+| 07 | фон (WorkManager/BGTaskScheduler), восстановление после сбоев, уведомления |

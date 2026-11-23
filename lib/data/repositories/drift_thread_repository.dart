@@ -129,6 +129,76 @@ class DriftThreadRepository implements ThreadRepository {
   }
 
   @override
+  Future<Message?> findByMessageIdHeader(String messageIdHeader) async {
+    if (messageIdHeader.trim().isEmpty) return null;
+    final row = await (_db.select(_db.messages)
+          ..where((t) => t.messageIdHeader.equals(messageIdHeader.trim()))
+          ..limit(1))
+        .getSingleOrNull();
+    return row == null ? null : MessageMapper.toEntity(row);
+  }
+
+  @override
+  Future<Message?> findByProviderMessageId(
+    String accountId,
+    String providerMessageId,
+  ) async {
+    if (providerMessageId.isEmpty) return null;
+    final row = await (_db.select(_db.messages)
+          ..where(
+            (t) => t.accountId.equals(accountId) &
+                t.providerMessageId.equals(providerMessageId),
+          )
+          ..limit(1))
+        .getSingleOrNull();
+    return row == null ? null : MessageMapper.toEntity(row);
+  }
+
+  @override
+  Future<MessageThread?> findByProviderThreadId(
+    String accountId,
+    String providerThreadId,
+  ) async {
+    if (providerThreadId.isEmpty) return null;
+    final row = await (_db.select(_db.conversations)
+          ..where(
+            (t) => t.accountId.equals(accountId) &
+                t.providerThreadId.equals(providerThreadId),
+          )
+          ..limit(1))
+        .getSingleOrNull();
+    if (row == null) return null;
+    final participants = await _participantsFor(<String>[row.id]);
+    return MessageMapper.threadToEntity(row, participants[row.id] ?? const []);
+  }
+
+  @override
+  Future<void> replaceParticipants(
+    String threadId,
+    List<ThreadParticipant> participants,
+  ) async {
+    await _db.transaction(() async {
+      await (_db.delete(_db.conversationParticipants)
+            ..where((t) => t.conversationId.equals(threadId)))
+          .go();
+      final seen = <String>{};
+      for (final participant in participants) {
+        final address = participant.address.trim().toLowerCase();
+        if (address.isEmpty || !seen.add(address)) continue;
+        await _db.into(_db.conversationParticipants).insert(
+              ConversationParticipantsCompanion.insert(
+                id: '${threadId}_$address',
+                conversationId: threadId,
+                email: address,
+                contactId: Value(participant.contactId),
+                isOwnAddress: Value(participant.isOwnAddress),
+              ),
+            );
+      }
+    });
+  }
+
+  @override
   Future<MessageThread> saveThread(MessageThread thread) async {
     // Upsert, never REPLACE: REPLACE deletes and re-inserts the row, which would
     // trip the foreign keys of `messages` and `conversation_participants`.

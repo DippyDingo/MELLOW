@@ -7,11 +7,13 @@ import 'package:mellow/features/conversations/presentation/conversations_screen.
 import 'package:mellow/features/conversations/presentation/thread_screen.dart';
 import 'package:mellow/features/favorites/presentation/favorites_screen.dart';
 import 'package:mellow/features/onboarding/presentation/add_account_screen.dart';
+import 'package:mellow/features/onboarding/presentation/gmail_connect_screen.dart';
 import 'package:mellow/features/settings/presentation/about_screen.dart';
 import 'package:mellow/features/settings/presentation/accounts_screen.dart';
 import 'package:mellow/features/settings/presentation/appearance_screen.dart';
 import 'package:mellow/features/settings/presentation/privacy_screen.dart';
 import 'package:mellow/features/settings/presentation/settings_screen.dart';
+import 'package:mellow/features/sync/presentation/sync_screen.dart';
 
 /// Router of the app.
 ///
@@ -71,6 +73,16 @@ GoRouter createRouter({String initialLocation = AppRoutes.conversations}) {
       GoRoute(
         path: AppRoutes.addAccount,
         builder: (context, state) => const AddAccountScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.gmailConnect,
+        builder: (context, state) => GmailConnectScreen(
+          email: state.uri.queryParameters['email'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.sync,
+        builder: (context, state) => const SyncScreen(),
       ),
       GoRoute(
         path: AppRoutes.appearance,

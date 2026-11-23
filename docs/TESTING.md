@@ -58,6 +58,31 @@ final container = createContainer(database: db);
   подтверждение закрытия с текстом, определение провайдера по адресу, экран
   аккаунтов, профиль человека с адресами и переписками.
 
+## 4.1. Что добавлено в Sprint 03
+
+* `test/providers/pkce_test.dart` — длина и алфавит verifier, известный вектор
+  S256 из RFC 7636, детерминизм при seeded `Random`, уникальность `state`.
+* `test/providers/oauth_client_test.dart` — `MockClient`: успешный обмен,
+  400 → `AccountAuthException`, 503 → `MailProviderException`, refresh,
+  проверка отсутствия `client_secret`, «токен не в `toString`».
+* `test/providers/mime_builder_test.dart` — порядок заголовков, CRLF,
+  RFC 2047 для русской темы, `In-Reply-To`/`References` (порядок и дедупликация),
+  **Bcc отсутствует в теле и заголовках**, base64url round-trip, фолдинг 76.
+* `test/providers/gmail_parser_test.dart` — фикстура `users.messages.get`:
+  multipart/alternative, вложение, русская encoded-word тема, `SENT`/`UNREAD`,
+  `References` в список, вложенные multipart, HTML → текст.
+* `test/services/conversation_router_test.dart` — нормализация темы (`Re:`,
+  `Fwd:`, `Ответ:`, `Re[2]:`), приоритет маршрутизации, «одинаковая тема не
+  склеивает диалоги», участники без дубликатов, `updatedAt` не назад.
+* `test/services/mail_sync_service_test.dart` — сквозной прогон на
+  `AppDatabase.inMemory()` с фейковым провайдером: первая синхронизация,
+  дедупликация (в т.ч. по `Message-ID`), автосоздание контакта, свои письма,
+  участники, инкрементальный курсор, устаревший курсор → сверка, пагинация и
+  `maxPages`, `needsReauth` и сохранность курсора при сбое.
+
+Эти тесты не запускались в среде разработки (нет Flutter SDK) — первый прогон
+на вашей машине описан в [`VERIFY.md`](VERIFY.md).
+
 ## 5. Критерии готовности (по спецификации 8.1)
 
 | Проверка | Статус Sprint 01 |

@@ -4,10 +4,12 @@
 Android + iOS), которое подключается к существующим почтовым ящикам и превращает
 переписку в аккуратные диалоги.
 
-> **Статус: Sprint 01 — Foundation.**
-> Работают архитектура, локальная база (SQLite/Drift), темы, навигация и
-> интерфейс на демонстрационных данных. Подключение реальной почты — следующий
-> этап (см. [`docs/ROADMAP.md`](docs/ROADMAP.md)).
+> **Статус: Sprint 03 — Mail Core.**
+> Работают архитектура, локальная база (SQLite/Drift), темы, навигация,
+> интерфейс на демо-данных и **реальная синхронизация Gmail**: OAuth 2.0 + PKCE,
+> Gmail API, движок синхронизации с курсорами и дедупликацией, сборка диалогов
+> по `threadId` / `In-Reply-To` / `References`. Отправка писем — Sprint 05.
+> Пошаговая проверка на вашей машине — [`docs/VERIFY.md`](docs/VERIFY.md).
 
 ---
 
@@ -34,6 +36,20 @@ bash tool/check_structure.sh   # правила слоёв из AGENTS.md (не 
 
 Или одной командой: `tool/bootstrap.sh`.
 
+### Подключение своего Gmail
+
+```bash
+flutter run \
+  --dart-define=GOOGLE_CLIENT_ID=1234-abc.apps.googleusercontent.com \
+  --dart-define=GOOGLE_REDIRECT_URI=com.googleusercontent.apps.1234-abc:/oauth2redirect
+```
+
+(Подставьте свой client id; форма значения важнее примера.)
+
+Без этих ключей приложение честно сообщает, что Gmail не настроен, и не
+изображает успешную авторизацию. Подробности (включая регистрацию URL-схемы) —
+[`docs/VERIFY.md`](docs/VERIFY.md#5-подключение-реального-gmail).
+
 Чтобы увидеть демо-данные в release-сборке:
 
 ```bash
@@ -49,7 +65,9 @@ flutter run --dart-define=MELLOW_DEMO_SEED=true
 | Архитектура | Clean Architecture + feature-first, Dependency Inversion |
 | Домен | `Account`, `Contact`, `MessageThread`, `Message`, `Attachment`, контракты репозиториев |
 | Данные | Drift-схема (10 таблиц), индексы, миграционная стратегия, мапперы, 5 репозиториев |
-| Провайдеры | Контракт `MailProvider` + `ProviderCapabilities`, определение провайдера по домену |
+| Провайдеры | Контракт `MailProvider` + `ProviderCapabilities`; **Gmail**: OAuth 2.0 + PKCE, Gmail API (list/get/history/modify/send/attachments), парсер MIME, сборка RFC 5322 |
+| Синхронизация | `MailSyncService`: инкрементальная (historyId) и полная сверка, устаревший курсор → реконкайл, дедупликация по provider id и `Message-ID`, сборка диалогов, контакты по адресу |
+| Безопасность | Токены только в Keychain / EncryptedSharedPreferences, `state` + PKCE, токены никогда в логах |
 | UI | 4 раздела, экран диалога, профиль человека, Smart Composer, настройки, Focus Mode |
 | Темы | Светлая/тёмная/системная, дизайн-токены, проверенный контраст, масштабирование текста |
 | Состояние | Riverpod: настройки, аккаунты, диалоги, контакты, поиск |
@@ -57,9 +75,14 @@ flutter run --dart-define=MELLOW_DEMO_SEED=true
 
 Чего **сознательно нет** (и почему — честно):
 
-* реальной авторизации Gmail/Яндекс/Mail.ru/Outlook — этап 03 и 06;
-* отправки писем — Composer честно говорит, что отправка ещё не подключена;
-* фоновой синхронизации и уведомлений — этап 07.
+* Яндекс, Mail.ru, Outlook — Sprint 06 (экран подключения говорит об этом прямо);
+* отправки писем и очереди отправки — Sprint 05 (Composer сообщает это на экране);
+* фоновой синхронизации и уведомлений — Sprint 07;
+* полнотекстового поиска и Focus Mode — Sprint 08.
+
+Известное состояние среды разработки: код спринтов писался без установленного
+Flutter SDK, поэтому `flutter analyze` / `flutter test` **не запускались** —
+первый запуск на вашей машине и есть проверка (см. [`docs/VERIFY.md`](docs/VERIFY.md)).
 
 ---
 
@@ -71,9 +94,10 @@ lib/
 ├── core/           # темы, ошибки, константы, утилиты, общие виджеты
 ├── domain/         # сущности и контракты репозиториев (без Flutter-зависимостей UI)
 ├── data/           # Drift-схема, мапперы, реализации репозиториев, демо-данные
-├── providers/      # контракт MailProvider и определение провайдера
+├── providers/      # контракт MailProvider, Gmail API + OAuth/PKCE, MIME, discovery
+├── services/       # движок синхронизации, курсоры, сборка диалогов
 ├── features/       # accounts, conversations, contacts, favorites, composer,
-│                   # messages, settings, onboarding
+│                   # messages, settings, onboarding, sync
 └── main.dart       # точка входа → app/bootstrap
 ```
 
@@ -93,3 +117,4 @@ lib/
 | [`docs/UI_GUIDELINES.md`](docs/UI_GUIDELINES.md) | Токены, типографика, паттерны экранов |
 | [`docs/TESTING.md`](docs/TESTING.md) | Стратегия тестов и критерии готовности |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Спринты 01–08 и их результаты |
+| [`docs/VERIFY.md`](docs/VERIFY.md) | Как проверить приложение своими руками (сборка, тесты, Gmail) |

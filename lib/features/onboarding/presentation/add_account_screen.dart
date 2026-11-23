@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mellow/app/navigation/routes.dart';
 import 'package:mellow/core/theme/mellow_theme.dart';
 import 'package:mellow/core/utils/email_address.dart';
 import 'package:mellow/core/widgets/mellow_scaffold.dart';
@@ -6,10 +8,11 @@ import 'package:mellow/domain/entities/account.dart';
 import 'package:mellow/providers/discovery/provider_discovery.dart';
 
 /// Step 1 of account connection (spec 2.1): enter the address, Mellow detects
-/// the provider and explains which authorisation will be used.
+/// the provider and routes to the matching authorisation flow.
 ///
-/// Nothing is submitted yet: OAuth / IMAP adapters land in sprint 03/06, and the
-/// screen is explicit about that rather than faking a connection.
+/// Gmail opens the real OAuth 2.0 + PKCE flow. Other providers are recognised
+/// but explicitly not connectable yet (Sprint 06) — the screen says so instead
+/// of pretending to save an account.
 class AddAccountScreen extends StatefulWidget {
   const AddAccountScreen({super.key});
 
@@ -85,7 +88,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
           ],
           const SizedBox(height: MellowSpacing.xl),
           FilledButton(
-            onPressed: guess == null ? null : () => _showNextStep(context, guess),
+            onPressed: guess == null ? null : () => _continue(context, guess),
             child: const Text('Продолжить'),
           ),
           const SizedBox(height: MellowSpacing.lg),
@@ -95,15 +98,32 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
     );
   }
 
-  void _showNextStep(BuildContext context, ProviderGuess guess) {
+  /// Routes the user to the flow the detected provider actually supports.
+  ///
+  /// Gmail has a working implementation; everything else says plainly which
+  /// sprint brings it instead of opening a dead-end form.
+  void _continue(BuildContext context, ProviderGuess guess) {
+    final email = _controller.text.trim();
+
+    if (guess.provider == MailProviderKind.gmail) {
+      context.push(
+        '${AppRoutes.gmailConnect}?email=${Uri.encodeQueryComponent(email)}',
+      );
+      return;
+    }
+
+    _showComingSoon(context, guess);
+  }
+
+  void _showComingSoon(BuildContext context, ProviderGuess guess) {
     final provider = ProviderDiscovery.providerLabel(guess.provider);
     final method = switch (guess.provider) {
-      MailProviderKind.gmail => 'OAuth 2.0 через Gmail API',
       MailProviderKind.outlook => 'OAuth 2.0 через Microsoft Graph',
       MailProviderKind.yandex ||
       MailProviderKind.mailRu ||
       MailProviderKind.imap =>
         'IMAP / SMTP с паролем приложения',
+      MailProviderKind.gmail => 'OAuth 2.0 через Gmail API',
       MailProviderKind.demo => 'демонстрационный режим',
     };
 
@@ -126,9 +146,9 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
             Text('Способ входа: $method'),
             const SizedBox(height: MellowSpacing.lg),
             const Text(
-              'Авторизация провайдера подключается в следующем спринте '
-              '(Mail Core). Сейчас экран проверяет адрес и определяет провайдера — '
-              'пароли и токены нигде не сохраняются.',
+              'Сейчас в приложении работает только Gmail. Этот провайдер '
+              'подключается в Sprint 06 — экран честно сообщает об этом, '
+              'вместо того чтобы сохранить настройки без работающего входа.',
             ),
             const SizedBox(height: MellowSpacing.xl),
             FilledButton(

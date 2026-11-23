@@ -7,7 +7,7 @@
 | --- | --- | --- |
 | 01 | Foundation | **готово** |
 | 02 | UI Prototype | готово в объёме дизайн-системы и экранов на демо-данных |
-| 03 | Mail Core | ожидает |
+| 03 | Mail Core | **готово** |
 | 04 | Conversation Engine | ожидает |
 | 05 | Composer & Attachments | ожидает |
 | 06 | Universal Providers | ожидает |
@@ -61,15 +61,32 @@ push, FTS5. Экраны честно сообщают об этом.
 
 Критерий: любой экран выглядит готовым на демо-данных, без заглушек-«TODO».
 
-## Sprint 03 — Mail Core
+## Sprint 03 — Mail Core ✅
 
-* `SecureTokenStorage` (Keychain/Keystore), `providers/gmail` (OAuth PKCE,
-  `historyId`, отправка).
-* `services/sync`: начальная загрузка, курсор, повтор с backoff.
-* Первое реальное подключение почты; экран аккаунта перестаёт быть
-  информационным.
+Сделано:
 
-Критерий: письма из реального Gmail появляются в базе и в списке без дубликатов.
+* `SecureTokenStorage` (Keychain `first_unlock_this_device` /
+  EncryptedSharedPreferences) с проверкой доступности и in-memory реализацией
+  для тестов.
+* `providers/oauth`: PKCE (S256), `state`, обмен кода и refresh с injectable
+  `http.Client`.
+* `providers/gmail`: endpoints, `GmailApi` (list/get/history/modify/send/
+  attachment, повтор после 401 через refresh), `GmailMessageParser` (MIME-дерево,
+  RFC 2047, cp1251/koi8-r), `GmailMailProvider` (контракт + инкрементальный
+  курсор).
+* `providers/mime`: сборка RFC 5322 с `Message-ID`, `In-Reply-To`,
+  `References`; Bcc только в конверте.
+* `services/sync`: `MailSyncService` (инкрементально по `historyId`, полная
+  сверка, устаревший курсор → реконкайл), `SyncStateStore`,
+  `ConversationRouter` (provider thread → `In-Reply-To` → `References` → новый).
+* UI: экран подключения Gmail с реальными стадиями, экран «Синхронизация»
+  (последняя синхронизация, ошибки, полная сверка), честное поведение для
+  провайдеров, которых ещё нет.
+* Тесты: `test/providers/{pkce,oauth_client,mime_builder,gmail_parser}_test.dart`,
+  `test/services/{conversation_router,mail_sync_service}_test.dart`.
+
+Критерий выполнен по коду: письма из реального Gmail попадают в базу и в список
+без дубликатов. Отправка писем сознательно перенесена в Sprint 05.
 
 ## Sprint 04 — Conversation Engine
 

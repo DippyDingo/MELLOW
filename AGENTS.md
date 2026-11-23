@@ -61,13 +61,30 @@ providers    (providers/contracts, providers/<adapter>)
   Исключение — `package:flutter/foundation.dart` для `@immutable`.
 * `data/` реализует контракты `domain/repositories`. Drift-типы (`*Row`,
   `*Companion`) не выходят за пределы `data/`.
-* `providers/` — единственное место, где живут конкретные адаптеры почты.
+* `providers/` — единственное место, где живут конкретные адаптеры почты и
+  OAuth/PKCE. Токены сохраняются только через `SecureTokenStorage`.
 * `features/` — фича владеет своими экранами, контроллерами и виджетами.
   Общий виджет живёт в `core/widgets` только если используется **двумя и более**
   фичами.
 
 Проверка перед коммитом: если из `domain/` пришлось импортировать что-то из
 `data/` или `features/` — решение неверное.
+
+### 3.1. `services/` — прикладные движки вне фич
+
+`lib/services/` (синхронизация, позже поиск и уведомления) занимает место между
+`providers/` и `features/`: он координирует репозитории и адаптеры, но не рисует
+UI. Правила для него:
+
+* не импортирует `flutter/material` и ничего из `features/` — иначе движок
+  нельзя запустить в фоновом isolate и протестировать без виджетов;
+* зависит от `domain/` (контракты, сущности) и от `providers/contracts`;
+* конкретные адаптеры выбираются фабрикой `providers/provider_factory.dart`,
+  а не внутри сервиса.
+
+`tool/check_structure.sh` проверяет и это правило: `lib/services/**` не должен
+импортировать `flutter/material`, `flutter/widgets`, `flutter/cupertino` или
+`features/`.
 
 ---
 

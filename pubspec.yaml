@@ -28,6 +28,18 @@ dependencies:
   # Identifiers
   uuid: ^4.5.1
 
+  # Networking (mail providers)
+  http: ^1.2.2
+
+  # PKCE (SHA-256 for the OAuth code challenge) and MIME encoding
+  crypto: ^3.0.5
+
+  # Secrets: OAuth tokens and app passwords live in the OS keystore
+  flutter_secure_storage: ^9.2.2
+
+  # Opening the provider's consent page and catching the redirect
+  url_launcher: ^6.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
