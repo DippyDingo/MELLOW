@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:mellow/core/utils/email_address.dart';
 import 'package:mellow/data/database/app_database.dart';
 import 'package:mellow/data/mappers/message_mapper.dart';
 import 'package:mellow/domain/entities/message.dart';
@@ -250,6 +251,89 @@ class DriftThreadRepository implements ThreadRepository {
           MessageMapper.threadToCompanion(thread),
         );
     return (await getThread(thread.id)) ?? thread;
+  }
+
+  @override
+  Future<MessageThread> createThreadForOutgoing({
+    required Message message,
+    required String subject,
+  }) async {
+    final normalizedSubject = subject.trim();
+    final thread = MessageThread(
+      id: message.threadId,
+      accountId: message.accountId,
+      subject: normalizedSubject,
+      participants: <EmailAddress>[
+        message.from,
+        ...message.to,
+        ...message.cc,
+      ],
+      updatedAt: message.sentAt,
+      lastMessagePreview: message.preview,
+      // Own message: nothing unread in it.
+      unreadCount: 0,
+    );
+    return saveThread(thread);
+  }
+
+  @override
+  Future<void> updateOutgoingMessage(Message message) async {
+    final row = await (_db.select(_db.messages)
+          ..where((t) => t.id.equals(message.id)))
+        .getSingleOrNull();
+    if (row == null) {
+      await _db.into(_db.messages).insert(MessageMapper.toCompanion(message));
+      await _refreshThreadCounters(message.threadId);
+      return;
+    }
+    await (_db.update(_db.messages)..where((t) => t.id.equals(message.id))).write(
+      _companionWithId(message, message.id),
+    );
+    await _refreshThreadCounters(message.threadId);
+  }
+
+  @override
+  Future<void> setDeliveryStatus(
+    String messageId,
+    DeliveryStatus status, {
+    String? threadId,
+  }) async {
+    final row = await (_db.select(_db.messages)
+          ..where((t) => t.id.equals(messageId)))
+        .getSingleOrNull();
+    if (row == null) return;
+
+    final movesThread = threadId != null && threadId != row.conversationId;
+    await (_db.update(_db.messages)..where((t) => t.id.equals(messageId))).write(
+      MessagesCompanion(
+        deliveryStatus: Value(status.name),
+        isOutgoing: const Value(true),
+        if (movesThread) conversationId: Value(threadId),
+      ),
+    );
+
+    await _refreshThreadCounters(row.conversationId);
+    if (movesThread) {
+      await _refreshThreadCounters(threadId);
+      await _dropThreadIfEmpty(row.conversationId);
+    }
+  }
+
+  /// Removes a conversation that holds no messages.
+  ///
+  /// The composer stores an outgoing message against a placeholder thread id
+  /// before the real conversation exists; once the message moves out, the
+  /// placeholder must not linger in the list.
+  Future<void> _dropThreadIfEmpty(String threadId) async {
+    final remaining = await (_db.selectOnly(_db.messages)
+          ..addColumns(<Expression<Object>>[_db.messages.id])
+          ..where(_db.messages.conversationId.equals(threadId)))
+        .get();
+    if (remaining.isNotEmpty) return;
+    await (_db.delete(_db.conversationParticipants)
+          ..where((t) => t.conversationId.equals(threadId)))
+        .go();
+    await (_db.delete(_db.conversations)..where((t) => t.id.equals(threadId))).go();
   }
 
   @override

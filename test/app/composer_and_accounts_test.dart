@@ -43,12 +43,28 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Добавьте хотя бы одного получателя'), findsOneWidget);
 
-    // Valid address clears the error and reports the honest limitation.
+    // A valid address clears the error. The send itself needs a real mailbox,
+    // so it is covered by `send_controller_test.dart` against a fake adapter.
     await tester.enterText(find.byType(TextField).first, 'alex@example.com');
-    await tester.tap(find.byIcon(Icons.send_outlined));
     await tester.pumpAndSettle();
     expect(find.text('Добавьте хотя бы одного получателя'), findsNothing);
-    expect(find.byType(SnackBar), findsOneWidget);
+  });
+
+  testWidgets('replying opens the composer with the recipient and subject',
+      (tester) async {
+    await pumpApp(tester);
+
+    // Open the seeded conversation with Мария and use the reply bar.
+    await tester.tap(find.text('Мария Соколова'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ответить…'));
+    await tester.pumpAndSettle();
+
+    // The reply screen is prefilled, not an empty "new message" form.
+    expect(find.text('Ответ'), findsOneWidget);
+    expect(find.text('Новое сообщение'), findsNothing);
+    expect(find.text('maria.sokolova@mail.ru'), findsOneWidget);
+    expect(find.text('Re: Планы на выходные'), findsWidgets);
   });
 
   testWidgets('closing a filled composer asks for confirmation', (tester) async {
