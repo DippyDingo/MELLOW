@@ -349,9 +349,26 @@ def patch_main_activity() -> list[str]:
         "        ).setMethodCallHandler(ApkInstallerPlugin(this))\n"
         "    }\n"
     )
-    marker = "class MainActivity : FlutterActivity() {"
-    if marker in text:
-        text = text.replace(marker, marker + override, 1)
+    # The generated class body is empty: `class MainActivity : FlutterActivity()`
+    # followed by `}` or `{}`, and some templates put the brace on the next line.
+    # Inserting before the closing brace keeps the override inside the class,
+    # which a plain text append does not: Kotlin then reads it as a top-level
+    # function and the build dies with «Modifier 'override' is not applicable».
+    class_body = re.search(
+        r"class\s+MainActivity\s*:\s*FlutterActivity\(\s*\)\s*\{\s*\}?",
+        text,
+    )
+    if class_body is not None:
+        end = class_body.end()
+        body = class_body.group(0)
+        # Drop the empty `{}` pair, then insert before the closing brace.
+        if body.rstrip().endswith("{}"):
+            cut = end - 1
+            text = text[:cut] + override + "}" + text[end:]
+        else:
+            close = text.rfind("}", 0, end) if "}" in body else -1
+            cut = close if close != -1 else end
+            text = text[:cut] + override + text[cut:]
     else:
         text = text + override
 
