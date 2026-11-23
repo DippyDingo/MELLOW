@@ -117,7 +117,7 @@ abstract final class GmailMessageParser {
     void visit(Map<String, dynamic> part) {
       final mimeType = (part['mimeType'] as String? ?? '').toLowerCase();
       final body = _asMap(part['body']);
-      final data = body['data'] as String?;
+      final data = body?['data'] as String?;
 
       // The declared charset lives in the part's own Content-Type header. Mail
       // from older Russian clients still arrives as cp1251/koi8-r, and decoding

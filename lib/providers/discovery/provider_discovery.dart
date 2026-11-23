@@ -27,22 +27,24 @@ class ProviderGuess {
 /// screen always lets the user override the result. Unknown domains fall back to
 /// generic IMAP/SMTP, which the user must configure manually.
 abstract final class ProviderDiscovery {
+  // Plain string keys: `MailProviderKind.x.name` is an extension getter and
+  // cannot appear in a constant expression.
   static const Map<String, List<String>> _domains = <String, List<String>>{
-    MailProviderKind.gmail.name: <String>['gmail.com', 'googlemail.com'],
-    MailProviderKind.outlook.name: <String>[
+    'gmail': <String>['gmail.com', 'googlemail.com'],
+    'outlook': <String>[
       'outlook.com',
       'hotmail.com',
       'live.com',
       'msn.com',
     ],
-    MailProviderKind.yandex.name: <String>[
+    'yandex': <String>[
       'yandex.ru',
       'yandex.com',
       'ya.ru',
       'yandex.by',
       'yandex.kz',
     ],
-    MailProviderKind.mailRu.name: <String>[
+    'mailRu': <String>[
       'mail.ru',
       'inbox.ru',
       'list.ru',

@@ -25,24 +25,26 @@ GmailMailProvider provider({
   );
 }
 
+AppConfig config({String id = clientId, String redirect = ''}) => AppConfig(
+      googleClientId: id,
+      microsoftClientId: '',
+      googleRedirectUri: redirect,
+    );
+
 void main() {
   group('AppConfig', () {
     test('derives the reversed-client-id redirect when none is given', () {
-      final config = AppConfig(googleClientId: clientId, microsoftClientId: '');
+      final value = config();
       expect(
-        config.googleRedirectUri,
+        value.googleRedirectUri,
         'com.googleusercontent.apps.1234-abc:/oauth2redirect',
       );
-      expect(config.isGoogleConfigured, isTrue);
+      expect(value.isGoogleConfigured, isTrue);
     });
 
     test('an explicit redirect wins', () {
-      final config = AppConfig(
-        googleClientId: clientId,
-        microsoftClientId: '',
-        googleRedirectUri: 'app.mellow:/oauth2redirect',
-      );
-      expect(config.googleRedirectUri, 'app.mellow:/oauth2redirect');
+      final value = config(redirect: 'app.mellow:/oauth2redirect');
+      expect(value.googleRedirectUri, 'app.mellow:/oauth2redirect');
     });
 
     test('is not configured without a client id', () {

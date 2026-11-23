@@ -6,7 +6,7 @@ import 'package:http/testing.dart';
 import 'package:mellow/core/utils/update_check.dart';
 
 UpdateChecker checker({
-  required Map<String, dynamic> body,
+  required Object body,
   int status = 200,
   String repository = 'DippyDingo/MELLOW',
   String currentSha = 'abc1234',
@@ -81,7 +81,7 @@ void main() {
 
     test('a missing channel is explained, not hidden', () async {
       final status = await checker(
-        body: <Map<String, dynamic>>const [],
+        body: const <Map<String, dynamic>>[],
         repository: '',
       ).check();
 

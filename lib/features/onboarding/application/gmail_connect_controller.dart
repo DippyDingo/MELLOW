@@ -46,6 +46,27 @@ class GmailConnectState {
       step == GmailConnectStep.exchangingCode ||
       step == GmailConnectStep.verifying ||
       step == GmailConnectStep.syncing;
+
+  /// Keeps the address and the consent URL while the flow advances, so the
+  /// screen can still offer "open the browser again".
+  GmailConnectState copyWith({
+    GmailConnectStep? step,
+    Uri? authorizationUri,
+    String? message,
+    String? error,
+    String? accountEmail,
+    int? syncedMessages,
+    bool clearError = false,
+  }) {
+    return GmailConnectState(
+      step: step ?? this.step,
+      authorizationUri: authorizationUri ?? this.authorizationUri,
+      message: message ?? this.message,
+      error: clearError ? null : (error ?? this.error),
+      accountEmail: accountEmail ?? this.accountEmail,
+      syncedMessages: syncedMessages ?? this.syncedMessages,
+    );
+  }
 }
 
 /// Drives the real OAuth 2.0 + PKCE flow for Gmail and the first sync.

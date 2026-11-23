@@ -52,7 +52,7 @@ class StorageController extends AsyncNotifier<StorageSummary> {
   Future<StorageSummary> _measure() async {
     final db = ref.watch(appDatabaseProvider);
     final threads = await ref.watch(threadRepositoryProvider).getThreads();
-    final contacts = await ref.watch(contactRepositoryProvider).getContacts();
+    final contacts = await ref.watch(contactRepositoryProvider).search('');
     final accounts = await ref.watch(accountRepositoryProvider).getAccounts();
 
     var messages = 0;

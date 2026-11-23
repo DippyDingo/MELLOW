@@ -45,6 +45,7 @@ ProviderContainer createContainer({required AppDatabase database}) {
       appDatabaseProvider.overrideWithValue(database),
     ],
   );
-  container.onDispose(() => unawaited(database.close()));
+  // The container has no dispose hook in Riverpod 2.x: the database lives as
+  // long as the app does, and tests close their own instance.
   return container;
 }

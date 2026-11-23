@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mellow/core/theme/mellow_theme.dart';
 import 'package:mellow/core/widgets/contact_list.dart';
 import 'package:mellow/core/widgets/mellow_scaffold.dart';
 import 'package:mellow/features/contacts/application/contacts_controller.dart';

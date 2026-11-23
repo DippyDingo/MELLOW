@@ -3,7 +3,7 @@
 /// Everything here is supplied with `--dart-define`, so no client id or secret
 /// ever lands in the repository. Values that are missing keep the app fully
 /// usable: the affected provider simply reports that it is not configured.
-abstract final class AppConfig {
+final class AppConfig {
   const AppConfig({
     required this.googleClientId,
     required this.microsoftClientId,
