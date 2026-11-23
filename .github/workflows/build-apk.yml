@@ -115,12 +115,28 @@ jobs:
           {
             echo "### CI failure for ${GITHUB_SHA:0:7}"
             echo
+            echo '#### flutter analyze'
             echo '```'
-            tail -n 250 analyze.log 2>/dev/null || echo "no analyze output"
+            tail -n 120 analyze.log 2>/dev/null || echo "no analyze output"
             echo '```'
             echo
+            echo '#### failing tests'
             echo '```'
-            tail -n 250 test.log 2>/dev/null || echo "no test output"
+            grep -E '\[E\]$' test.log 2>/dev/null \
+              | sed -E 's/^[0-9:]+ \+[0-9]+ -[0-9]+: //' \
+              | sed -E 's#^.*/MELLOW/##' \
+              | sort -u || echo "no test output"
+            echo '```'
+            echo
+            echo '#### failure details'
+            echo '```'
+            grep -A 8 -E '^(The following .* was thrown|Expected:)' test.log 2>/dev/null \
+              | head -n 600 || echo "none"
+            echo '```'
+            echo
+            echo '#### tail of the test log'
+            echo '```'
+            tail -n 60 test.log 2>/dev/null || echo "no test output"
             echo '```'
           } > ci-failure.md
 

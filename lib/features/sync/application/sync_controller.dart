@@ -189,6 +189,10 @@ final syncControllerProvider =
 final syncOnLaunchProvider = FutureProvider<void>((ref) async {
   final settings = ref.watch(appSettingsProvider);
   if (!settings.syncOnLaunch) return;
+  // Yield once before touching the sync controller: a provider may not modify
+  // another provider while it is still building, and `syncNow` sets the
+  // controller state synchronously on its first line.
+  await Future<void>.delayed(Duration.zero);
   try {
     await ref.read(syncControllerProvider.notifier).syncNow();
   } catch (_) {

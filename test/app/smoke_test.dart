@@ -82,7 +82,7 @@ void main() {
   testWidgets('search narrows the conversation list', (tester) async {
     await pumpApp(tester);
 
-    await tester.enterText(find.byType(TextField).first, 'отпуск');
+    await tester.enterText(find.byType(TextField).first, 'выходные');
     await tester.pumpAndSettle();
 
     // Subject/preview search: only the trip thread survives.

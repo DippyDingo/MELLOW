@@ -19,13 +19,17 @@ final contactsProvider = StreamProvider<List<Contact>>((ref) {
 
 /// Favourites only, for the "Избранное" tab.
 ///
-/// Depends on the all-contacts stream rather than on `AsyncValue.isFavorite`:
-/// the resolved list is what the tab renders, and loading/error stay in the
-/// standard `AsyncValue` wrapper where the screen can handle them.
-final favoriteContactsProvider = StreamProvider<List<Contact>>((ref) async* {
-  await for (final contacts in ref.watch(contactsProvider.stream)) {
-    yield contacts.where((contact) => contact.isFavorite).toList(growable: false);
-  }
+/// Derived from the all-contacts provider rather than queried again: the tab
+/// renders the resolved list, and loading/error stay in the standard
+/// `AsyncValue` wrapper where the screen can handle them.
+final favoriteContactsProvider = Provider<AsyncValue<List<Contact>>>((ref) {
+  return ref
+      .watch(contactsProvider)
+      .whenData(
+        (contacts) => contacts
+            .where((contact) => contact.isFavorite)
+            .toList(growable: false),
+      );
 });
 
 /// One contact, resolved lazily for the profile screen.
