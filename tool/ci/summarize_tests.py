@@ -69,6 +69,7 @@ def parse(path: Path) -> dict:
                 "url": test.get("url") or suites.get(test.get("suiteID", -1), ""),
                 "line": test.get("line") or 0,
                 "errors": [],
+                "prints": [],
             }
             by_id[test.get("id", -1)] = entry
             started += 1
@@ -102,6 +103,13 @@ def parse(path: Path) -> dict:
                 tests.append(entry)
             elif event.get("result") in {"failure", "error"} and not event.get("hidden"):
                 failures.append(entry)
+        elif kind == "print":
+            entry = by_id.get(event.get("testID", -1))
+            if entry is None:
+                continue
+            message = event.get("message") or ""
+            if message.strip():
+                entry["prints"].append(message.rstrip())
         elif kind == "done":
             success = event.get("success")
 
@@ -135,6 +143,12 @@ def _failure_block(entry: dict, limit: int = MAX_STACK_LINES) -> list[str]:
     for error in entry.get("errors", [])[:2]:
         message = error["error"].replace("```", "'''")
         out += ["```", *message.splitlines()[:limit], "```"]
+    # The framework reports the real cause through `print`, not through the
+    # error event, which only says "see exception logs above".
+    printed = entry.get("prints") or []
+    if printed:
+        tail = "\n".join(printed).splitlines()[-limit:]
+        out += ["output:", "```", *tail, "```"]
         stack = [
             line
             for line in error["stack"].splitlines()
@@ -167,7 +181,7 @@ def render(parsed: dict, comment: bool = False) -> str:
         if len(failures) > MAX_FAILURES:
             parts.append(f"… {len(failures) - MAX_FAILURES} more failures omitted.")
     orphans = parsed.get("orphans") or []
-    if orphans and failures:
+    if orphans:
         parts.append("#### uncaught errors")
         for orphan in orphans[:5]:
             parts += ["```", *orphan["error"].splitlines()[:20], "```"]
