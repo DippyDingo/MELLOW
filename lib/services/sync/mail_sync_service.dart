@@ -347,7 +347,7 @@ class MailSyncService {
       );
     }
 
-    return _PersistOutcome(isNew: existing == null, threadId: conversationId);
+    return _PersistOutcome(isNew: storedCopy == null, threadId: conversationId);
   }
 
   /// Builds the participant rows of a thread.
