@@ -12,6 +12,9 @@ is generated, not committed):
   * an intent filter for the OAuth redirect scheme, and
     `flutter_deeplinking_enabled=false` so go_router does not swallow the link.
   * `<queries>` for the browser, required by url_launcher on Android 11+.
+  * `REQUEST_INSTALL_PACKAGES` — needed from Android 8 to hand a downloaded APK
+    to the system installer. `open_filex` deliberately does not declare it (Play
+    policy), and we distribute the APK outside Play, so it is added here.
 
 Run from the repository root after `flutter create`:
 
@@ -50,6 +53,23 @@ def patch_manifest(scheme: str) -> list[str]:
 
     lines = MANIFEST.read_text(encoding="utf-8").splitlines()
     changes: list[str] = []
+
+    # 0. Install permission, as the outermost child of <manifest>.
+    #    Without it Android silently refuses the install and the user sees
+    #    "nothing happens" after tapping «Установить».
+    if "android.permission.REQUEST_INSTALL_PACKAGES" not in "\n".join(lines):
+        for index, line in enumerate(lines):
+            if line.lstrip().startswith("<application"):
+                lines.insert(
+                    index,
+                    '    <!-- In-app updates: hand a downloaded APK to the installer. -->',
+                )
+                lines.insert(
+                    index + 1,
+                    '    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />',
+                )
+                changes.append("REQUEST_INSTALL_PACKAGES")
+                break
 
     # 1. <queries> right before <application>.
     if not any("<queries>" in line for line in lines):

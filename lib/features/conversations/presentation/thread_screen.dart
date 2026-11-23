@@ -10,15 +10,50 @@ import 'package:mellow/domain/entities/message.dart';
 import 'package:mellow/features/messages/application/thread_detail_controller.dart';
 
 /// Message list of one thread, grouped by day (spec 5.4).
-class ThreadScreen extends ConsumerWidget {
+class ThreadScreen extends ConsumerStatefulWidget {
   const ThreadScreen({required this.threadId, super.key});
 
   final String threadId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ThreadScreen> createState() => _ThreadScreenState();
+}
+
+class _ThreadScreenState extends ConsumerState<ThreadScreen> {
+  /// Messages already marked as read, so the write happens once per message
+  /// instead of on every rebuild.
+  final Set<String> _markedRead = <String>{};
+
+  String get threadId => widget.threadId;
+
+  /// Opening a conversation reads it (spec 2.3).
+  ///
+  /// Only the local copy is touched here: the server is updated by the sync
+  /// engine, so opening a screen never fires a burst of API calls.
+  void _markRead(List<Message> messages) {
+    final unread = messages
+        .where((message) => !message.isRead && !message.isOutgoing)
+        .where((message) => _markedRead.add(message.id))
+        .toList(growable: false);
+    if (unread.isEmpty) return;
+
+    final repository = ref.read(threadRepositoryProvider);
+    for (final message in unread) {
+      repository.setRead(message.id, read: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final thread = ref.watch(threadByIdProvider(threadId));
     final messages = ref.watch(threadMessagesProvider(threadId));
+
+    final loaded = messages.valueOrNull;
+    if (loaded != null && loaded.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _markRead(loaded);
+      });
+    }
 
     return thread.when(
       data: (value) {
@@ -103,7 +138,16 @@ class ThreadScreen extends ConsumerWidget {
                           title: 'В переписке пока нет сообщений',
                           icon: Icons.chat_bubble_outline,
                         )
-                      : _MessageList(messages: items),
+                      : _MessageList(
+                          messages: items,
+                          threadId: threadId,
+                          onReply: (message) => context.push(
+                            AppRoutes.reply(
+                              threadId: threadId,
+                              messageId: message.id,
+                            ),
+                          ),
+                        ),
                   loading: () => const Center(child: CircularProgressIndicator()),
                   error: (error, _) => MellowEmptyState(
                     title: 'Не удалось открыть переписку',
@@ -112,7 +156,7 @@ class ThreadScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              const _ReplyBar(),
+              _ReplyBar(threadId: threadId, messages: messages.valueOrNull ?? const <Message>[]),
             ],
           ),
         );
@@ -133,9 +177,18 @@ class ThreadScreen extends ConsumerWidget {
 }
 
 class _MessageList extends StatelessWidget {
-  const _MessageList({required this.messages});
+  const _MessageList({
+    required this.messages,
+    required this.threadId,
+    required this.onReply,
+  });
 
   final List<Message> messages;
+  final String threadId;
+
+  /// Answer the *tapped* message rather than the newest one: replying to an
+  /// older message in a long thread is a normal thing to want.
+  final void Function(Message message) onReply;
 
   @override
   Widget build(BuildContext context) {
@@ -164,6 +217,7 @@ class _MessageList extends StatelessWidget {
           message: message,
           isOwn: ownAddresses.isEmpty ||
               ownAddresses.contains(message.from.address),
+          onReply: message.isDraft ? null : () => onReply(message),
         ),
       );
     }
@@ -213,9 +267,16 @@ class _DaySeparator extends StatelessWidget {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message, required this.isOwn});
+  const _MessageBubble({
+    required this.message,
+    required this.isOwn,
+    this.onReply,
+  });
 
   final Message message;
+
+  /// Long-press target: answers this message, not the newest one.
+  final VoidCallback? onReply;
 
   /// True when the message was sent by the user's own account address.
   final bool isOwn;
@@ -231,61 +292,64 @@ class _MessageBubble extends StatelessWidget {
 
     return Align(
       alignment: outgoing ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        margin: const EdgeInsets.only(bottom: MellowSpacing.sm),
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
-        decoration: BoxDecoration(
-          color: outgoing ? tokens.bubbleOutgoing : tokens.bubbleIncoming,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(MellowRadius.lg),
-            topRight: const Radius.circular(MellowRadius.lg),
-            bottomLeft: Radius.circular(outgoing ? MellowRadius.lg : 4),
-            bottomRight: Radius.circular(outgoing ? 4 : MellowRadius.lg),
-          ),
-          border: outgoing ? null : Border.all(color: tokens.divider),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              message.bodyText.isEmpty ? '(пустое сообщение)' : message.bodyText,
-              style: textTheme.bodyMedium?.copyWith(
-                color: outgoing ? tokens.bubbleOutgoingText : tokens.bubbleIncomingText,
-              ),
+      child: GestureDetector(
+        onLongPress: onReply,
+        child: Container(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          margin: const EdgeInsets.only(bottom: MellowSpacing.sm),
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+          decoration: BoxDecoration(
+            color: outgoing ? tokens.bubbleOutgoing : tokens.bubbleIncoming,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(MellowRadius.lg),
+              topRight: const Radius.circular(MellowRadius.lg),
+              bottomLeft: Radius.circular(outgoing ? MellowRadius.lg : 4),
+              bottomRight: Radius.circular(outgoing ? 4 : MellowRadius.lg),
             ),
-            const SizedBox(height: MellowSpacing.xs),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                if (message.hasAttachments)
-                  Padding(
-                    padding: const EdgeInsets.only(right: MellowSpacing.xs),
-                    child: Icon(
-                      Icons.attach_file,
-                      size: 13,
-                      color: (outgoing ? tokens.bubbleOutgoingText : tokens.bubbleIncomingText)
-                          .withOpacity(0.7),
+            border: outgoing ? null : Border.all(color: tokens.divider),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                message.bodyText.isEmpty ? '(пустое сообщение)' : message.bodyText,
+                style: textTheme.bodyMedium?.copyWith(
+                  color: outgoing ? tokens.bubbleOutgoingText : tokens.bubbleIncomingText,
+                ),
+              ),
+              const SizedBox(height: MellowSpacing.xs),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (message.hasAttachments)
+                    Padding(
+                      padding: const EdgeInsets.only(right: MellowSpacing.xs),
+                      child: Icon(
+                        Icons.attach_file,
+                        size: 13,
+                        color: (outgoing ? tokens.bubbleOutgoingText : tokens.bubbleIncomingText)
+                            .withOpacity(0.7),
+                      ),
+                    ),
+                  Text(
+                    message.isDraft
+                        ? 'черновик'
+                        : MellowDates.time(message.sentAt),
+                    style: textTheme.labelSmall?.copyWith(
+                      color: (outgoing
+                              ? tokens.bubbleOutgoingText
+                              : tokens.bubbleIncomingText)
+                          .withOpacity(0.65),
                     ),
                   ),
-                Text(
-                  message.isDraft
-                      ? 'черновик'
-                      : MellowDates.time(message.sentAt),
-                  style: textTheme.labelSmall?.copyWith(
-                    color: (outgoing
-                            ? tokens.bubbleOutgoingText
-                            : tokens.bubbleIncomingText)
-                        .withOpacity(0.65),
-                  ),
-                ),
-                if (outgoing) ...<Widget>[
-                  const SizedBox(width: 4),
-                  _StatusIcon(status: message.deliveryStatus),
+                  if (outgoing) ...<Widget>[
+                    const SizedBox(width: 4),
+                    _StatusIcon(status: message.deliveryStatus),
+                  ],
                 ],
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -317,9 +381,25 @@ class _StatusIcon extends StatelessWidget {
   }
 }
 
-/// Bottom composer entry point. Sending itself arrives in sprint 05.
+/// Bottom entry point of the composer.
+///
+/// It replies to the *last* message of the conversation, which is the one the
+/// user sees right above the field. A conversation without messages has
+/// nothing to answer, so the bar opens a new message instead.
 class _ReplyBar extends StatelessWidget {
-  const _ReplyBar();
+  const _ReplyBar({required this.threadId, required this.messages});
+
+  final String threadId;
+  final List<Message> messages;
+
+  void _open(BuildContext context) {
+    final target = messages.isEmpty ? null : messages.last;
+    if (target == null) {
+      context.push('${AppRoutes.compose}?threadId=$threadId');
+      return;
+    }
+    context.push(AppRoutes.reply(threadId: threadId, messageId: target.id));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -338,14 +418,14 @@ class _ReplyBar extends StatelessWidget {
           Expanded(
             child: TextField(
               readOnly: true,
-              onTap: () => context.push(AppRoutes.compose),
+              onTap: () => _open(context),
               decoration: const InputDecoration(hintText: 'Ответить…'),
             ),
           ),
           const SizedBox(width: MellowSpacing.sm),
           IconButton.filled(
             tooltip: 'Ответить',
-            onPressed: () => context.push(AppRoutes.compose),
+            onPressed: () => _open(context),
             icon: const Icon(Icons.send_outlined),
           ),
         ],

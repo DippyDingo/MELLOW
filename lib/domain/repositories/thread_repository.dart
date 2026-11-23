@@ -114,6 +114,33 @@ abstract interface class ThreadRepository {
 
   Future<void> setRead(String messageId, {required bool read});
 
+  /// Creates the conversation that will hold an outgoing message.
+  ///
+  /// Used by the composer before the message is stored: a message belongs to a
+  /// conversation, and inventing one at the repository level keeps the
+  /// "sending" copy visible in the UI while the network call is still running.
+  Future<MessageThread> createThreadForOutgoing({
+    required Message message,
+    required String subject,
+  });
+
+  /// Overwrites a stored outgoing message in place, keyed by its id.
+  ///
+  /// Used when a send is retried: the user edits nothing, so the second
+  /// attempt must not leave a duplicate row behind a first failure.
+  Future<void> updateOutgoingMessage(Message message);
+
+  /// Moves a message into [threadId] and sets its delivery state.
+  ///
+  /// [threadId] is required when the message was stored against a placeholder
+  /// conversation (a brand-new outgoing message), so the row is never left
+  /// pointing at a thread that does not exist.
+  Future<void> setDeliveryStatus(
+    String messageId,
+    DeliveryStatus status, {
+    String? threadId,
+  });
+
   Future<void> setThreadPinned(String threadId, {required bool pinned});
 
   Future<void> setThreadArchived(String threadId, {required bool archived});
