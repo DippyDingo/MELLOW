@@ -125,15 +125,18 @@ class UpdateController extends Notifier<UpdateState> {
   /// [automatic] applies the six-hour rule from the ТЗ: an automatic check is
   /// skipped when the previous one is recent, while a manual one always runs.
   Future<void> check({bool automatic = true}) async {
-    // Awaited, not read: while settings are still loading the synchronous
-    // provider answers with defaults, and «проверять обновления выключено»
-    // would be ignored on the very first launch after the user turned it off.
-    final AppSettings settings;
+    // Wait for the stored settings, then take the *live* state: `.future`
+    // resolves to the value of the first load, so a preference changed a second
+    // ago would be read as it was before the change. Reading the synchronous
+    // provider before the load finishes would use defaults instead, which is
+    // the same bug from the other side.
     try {
-      settings = await ref.read(settingsControllerProvider.future);
+      await ref.read(settingsControllerProvider.future);
     } on Exception {
       return;
     }
+    final AppSettings settings = ref.read(settingsControllerProvider).valueOrNull ??
+        ref.read(appSettingsProvider);
     if (!settings.updateCheckEnabled) {
       state = const UpdateState(phase: UpdatePhase.idle);
       return;
