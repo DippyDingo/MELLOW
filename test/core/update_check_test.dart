@@ -177,7 +177,7 @@ void main() {
       final UpdateStatus status = await recorder.checker(
         body: <Map<String, dynamic>>[
           release(
-            tag: 'build-ccc333',
+            tag: 'build-ccc3333',
             createdAt: '2026-11-24T00:00:00Z',
             assets: <Map<String, dynamic>>[
               <String, dynamic>{
@@ -187,11 +187,11 @@ void main() {
               },
             ],
           ),
-          release(tag: 'build-ddd444', createdAt: '2026-11-23T00:00:00Z'),
+          release(tag: 'build-ddd4444', createdAt: '2026-11-23T00:00:00Z'),
         ],
       ).check();
 
-      expect(status.release?.tag, 'build-ddd444');
+      expect(status.release?.tag, 'build-ddd4444');
     });
 
     test('refuses an APK link that is not https or not a GitHub host', () async {
@@ -199,24 +199,24 @@ void main() {
       final UpdateStatus status = await recorder.checker(
         body: <Map<String, dynamic>>[
           release(
-            tag: 'build-eee555',
+            tag: 'build-eee5555',
             createdAt: '2026-11-24T00:00:00Z',
             assets: <Map<String, dynamic>>[
-              apk('build-eee555', url: 'https://evil.example/mellow.apk'),
+              apk('build-eee5555', url: 'https://evil.example/mellow.apk'),
             ],
           ),
           release(
-            tag: 'build-fff666',
+            tag: 'build-fff6666',
             createdAt: '2026-11-24T00:00:00Z',
             assets: <Map<String, dynamic>>[
-              apk('build-fff666', url: 'http://github.com/mellow.apk'),
+              apk('build-fff6666', url: 'http://github.com/mellow.apk'),
             ],
           ),
-          release(tag: 'build-aaa777', createdAt: '2026-11-23T00:00:00Z'),
+          release(tag: 'build-aaa7777', createdAt: '2026-11-23T00:00:00Z'),
         ],
       ).check();
 
-      expect(status.release?.tag, 'build-aaa777');
+      expect(status.release?.tag, 'build-aaa7777');
     });
 
     test('a missing sha inside the tag is rejected', () async {
