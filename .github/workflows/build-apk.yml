@@ -229,9 +229,10 @@ jobs:
           notes="Сборка ${short_sha} из ветки ${GITHUB_REF_NAME}.
           Изменения: см. историю коммитов. Установка — docs/INSTALL.md."
 
-          # No --prerelease on purpose: GitHub marks such a release as "latest"
-          # only when it is a normal release, and the updater asks for the
-          # newest normal release by tag. A prerelease would need extra calls.
+          # No --prerelease on purpose: a prerelease makes /releases/latest
+          # answer 404, and that is exactly how the channel broke the first
+          # time. Normal release + the app reading the release list (see
+          # docs/UPDATES.md §3.1) keeps it working either way.
           gh release create "$tag" "$apk" \
             --repo "$GITHUB_REPOSITORY" \
             --title "Сборка ${short_sha}" \
