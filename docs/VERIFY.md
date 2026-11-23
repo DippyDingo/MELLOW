@@ -6,7 +6,7 @@
 `flutter analyze` и `flutter test` там ни разу не запускались.
 
 > Время: ~10 минут до запуска приложения, ~2 минуты на все проверки, если SDK
-> уже установлен.
+> уже установлен. Если Flutter ставить не хочется — есть готовый APK, см. ниже.
 
 ---
 
@@ -14,7 +14,7 @@
 
 | Инструмент | Версия | Проверка |
 | --- | --- | --- |
-| Flutter | 3.24+ (Dart 3.5+) | `flutter --version` |
+| Flutter | 3.24+ (Dart 3.5+); CI собирает на 3.24.5 | `flutter --version` |
 | Android Studio / Android SDK | API 34+ | `flutter doctor` |
 | Xcode (только для iOS) | 15+ | `flutter doctor` |
 | Git | любая | `git --version` |
@@ -23,6 +23,12 @@
 ставится вместе с Android Studio.
 
 ---
+
+## 0.1. Если нужен только APK
+
+Устанавливать Flutter не обязательно: готовый debug-APK собирается CI при
+каждом изменении ветки. См. [`INSTALL.md`](INSTALL.md) — там же, что проверить
+после установки.
 
 ## 1. Код генерируется один раз
 
@@ -39,6 +45,10 @@ flutter pub get
 dart run build_runner build --delete-conflicting-outputs
 ```
 
+`flutter test` дополнительно требует `sqlite3` в системе (Drift открывает
+настоящую SQLite в памяти): на macOS он есть, на Ubuntu —
+`sudo apt install libsqlite3-dev`.
+
 Ожидаемый результат: в `lib/data/database/` появились файлы `*.g.dart`,
 сборка завершилась сообщением `Succeeded after ...`.
 
@@ -54,13 +64,26 @@ bash tool/bootstrap.sh
 ## 2. Платформенные папки
 
 `android/` и `ios/` в репозитории намеренно отсутствуют: они генерируются под
-вашу версию Flutter и содержат машинно-зависимые файлы. Создаются один раз:
+вашу версию Flutter и содержат машинно-зависимые файлы.
+
+Самый безопасный путь — `bash tool/bootstrap.sh`: он генерирует их **во
+временном каталоге** и копирует, поэтому `flutter create` не может перезаписать
+`pubspec.yaml`, `README` и `lib/`.
+
+Вручную (если хочется контролировать каждый шаг):
 
 ```bash
-flutter create --platforms=android,ios --org app.mellow --project-name mellow .
+tmp=$(mktemp -d)
+flutter create --platforms=android,ios --org app.mellow \
+  --project-name mellow "$tmp/platform"
+cp -r "$tmp/platform/android" "$tmp/platform/ios" .
+
+# обязательные правки манифеста: minSdk 23, схема redirect, <queries>
+python3 tool/platform/prepare_android.py --scheme app.mellow
 ```
 
-Команда не перезапишет `lib/`, `pubspec.yaml` и документацию.
+Без последней строки APK соберётся, но: Android 5 упадёт при первом обращении
+к Keystore, а вход в Gmail не сможет вернуться из браузера.
 
 ---
 
@@ -185,10 +208,12 @@ flutter run \
 ## 7. Сборка релиза
 
 ```bash
-flutter build apk --debug                      # Android, проверка компиляции
+flutter build apk --debug                      # ставится на любой телефон
 flutter build appbundle --release              # Android release (нужен keystore)
 flutter build ios --no-codesign                # iOS, только macOS
 ```
+
+Установка APK подробно — [`INSTALL.md`](INSTALL.md).
 
 ---
 

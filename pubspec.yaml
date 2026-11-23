@@ -1,7 +1,7 @@
 name: mellow
 description: "Mellow — email, which feels like a messenger."
 publish_to: "none"
-version: 0.1.0+1
+version: 0.3.0+3
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -39,6 +39,9 @@ dependencies:
 
   # Opening the provider's consent page and catching the redirect
   url_launcher: ^6.3.0
+
+  # Receiving the OAuth redirect: com.googleusercontent.apps.<id>:/oauth2redirect
+  app_links: ^7.2.2
 
 dev_dependencies:
   flutter_test:

@@ -423,6 +423,29 @@ void main() {
     });
   });
 
+  group('local deletion', () {
+    test('deleteAccountThreads removes mail of one account only', () async {
+      provider.pages.addAll(<Message>[
+        incoming(providerId: 'p1', providerThread: 'thread-1', messageId: '<a@x>'),
+        incoming(providerId: 'p2', providerThread: 'thread-2', messageId: '<b@x>'),
+      ]);
+      await service.sync(account: account, provider: provider);
+      expect(await threads.getThreads(), hasLength(2));
+
+      await threads.deleteAccountThreads(account.id);
+
+      expect(await threads.getThreads(), isEmpty);
+      expect(await contacts.getContacts(), hasLength(1),
+          reason: 'people are not mail and survive the cleanup');
+      expect(await accounts.getAccount(account.id), isNotNull);
+    });
+
+    test('deleting an account with no mail is a no-op', () async {
+      await threads.deleteAccountThreads('acc-1');
+      expect(await threads.getThreads(), isEmpty);
+    });
+  });
+
   group('failures', () {
     test('an auth error flips the account to needsReauth', () async {
       provider.failure = const AccountAuthException('Токен истёк');

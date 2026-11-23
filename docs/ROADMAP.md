@@ -13,6 +13,7 @@
 | 06 | Universal Providers | ожидает |
 | 07 | Sync & Notifications | ожидает |
 | 08 | Focus & Polish | ожидает |
+| — | Сборка и установка на телефон (CI + `docs/INSTALL.md`) | **готово** |
 
 ---
 
@@ -87,6 +88,20 @@ push, FTS5. Экраны честно сообщают об этом.
 
 Критерий выполнен по коду: письма из реального Gmail попадают в базу и в список
 без дубликатов. Отправка писем сознательно перенесена в Sprint 05.
+
+Дополнительно закрыто (вне спринтов, для проверки на устройстве):
+
+* `tool/platform/prepare_android.py` — патч сгенерированного `android/`:
+  `minSdk 23`, `allowBackup=false`, intent-filter для OAuth-redirect,
+  `flutter_deeplinking_enabled=false`, `<queries>` для браузера.
+* `.github/workflows/build-apk.yml` — `flutter analyze`, тесты, debug APK,
+  iOS-компиляция без подписи; артефакт `mellow-debug-apk`.
+* `app_links` — возврат из браузера после согласия Google без ручной вставки
+  URL (ручной путь остался как резерв).
+* Экран **Настройки → Данные → Хранилище**: реальные размеры базы, число
+  писем/диалогов/людей, удаление локальных писем по аккаунту и целиком
+  (сервер не затрагивается).
+* `docs/INSTALL.md` — установка APK и первый запуск.
 
 ## Sprint 04 — Conversation Engine
 

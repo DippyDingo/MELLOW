@@ -73,6 +73,41 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Number of messages stored inside one conversation.
+  ///
+  /// Used by the storage screen; keeps `COUNT(*)` where it belongs — in `data/`.
+  Future<int> countMessages(String threadId) async {
+    final row = await customSelect(
+      'SELECT COUNT(*) AS c FROM messages WHERE conversation_id = ?',
+      variables: <Variable<Object>>[Variable<String>(threadId)],
+      readsFrom: <ResultSetImplementation<dynamic, dynamic>>{messages},
+    ).getSingle();
+    return row.read<int>('c');
+  }
+
+  /// On-disk footprint of the database and of the app-support directory.
+  ///
+  /// Returns nulls where the platform cannot report a size (in-memory tests):
+  /// the UI renders «—» instead of inventing a number.
+  Future<({int? databaseBytes, int? fileBytes})> usage() async {
+    try {
+      final directory = await getApplicationSupportDirectory();
+      final file = File(p.join(directory.path, 'mellow.sqlite'));
+      final databaseBytes = await file.exists() ? await file.length() : null;
+
+      var total = 0;
+      var seen = false;
+      await for (final entity in directory.list(recursive: true)) {
+        if (entity is! File) continue;
+        seen = true;
+        total += await entity.length();
+      }
+      return (databaseBytes: databaseBytes, fileBytes: seen ? total : null);
+    } catch (_) {
+      return (databaseBytes: null, fileBytes: null);
+    }
+  }
+
   /// Opens the on-disk database in the application support directory.
   static Future<AppDatabase> open() async {
     final directory = await getApplicationSupportDirectory();

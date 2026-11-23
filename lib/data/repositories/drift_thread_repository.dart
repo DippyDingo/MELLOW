@@ -199,6 +199,40 @@ class DriftThreadRepository implements ThreadRepository {
   }
 
   @override
+  Future<void> deleteAccountThreads(String accountId) async {
+    // One transaction: a half-deleted mailbox would break the counters and the
+    // participant rows that reference the conversations.
+    await _db.transaction(() async {
+      final threadIds = await (_db.selectOnly(_db.conversations)
+            ..addColumns(<Expression<Object>>[_db.conversations.id])
+            ..where(_db.conversations.accountId.equals(accountId)))
+          .map((row) => row.read<String>(_db.conversations.id)!)
+          .get();
+
+      // Children first: attachments reference messages, participants
+      // reference conversations, and foreign keys are enforced.
+      await (_db.delete(_db.attachments)
+            ..where(
+              (t) => t.messageId.isInQuery(
+                _db.selectOnly(_db.messages)
+                  ..addColumns(<Expression<Object>>[_db.messages.id])
+                  ..where(_db.messages.accountId.equals(accountId)),
+              ),
+            ))
+          .go();
+      await (_db.delete(_db.messages)
+            ..where((t) => t.accountId.equals(accountId)))
+          .go();
+      await (_db.delete(_db.conversationParticipants)
+            ..where((t) => t.conversationId.isIn(threadIds)))
+          .go();
+      await (_db.delete(_db.conversations)
+            ..where((t) => t.accountId.equals(accountId)))
+          .go();
+    });
+  }
+
+  @override
   Future<MessageThread> saveThread(MessageThread thread) async {
     // Upsert, never REPLACE: REPLACE deletes and re-inserts the row, which would
     // trip the foreign keys of `messages` and `conversation_participants`.

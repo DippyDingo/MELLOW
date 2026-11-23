@@ -54,6 +54,18 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ],
           ),
+          const MellowSectionHeader('Данные'),
+          _Group(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.sd_storage_outlined),
+                title: const Text('Хранилище'),
+                subtitle: const Text('Что хранится на устройстве и как освободить место'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(AppRoutes.storage),
+              ),
+            ],
+          ),
           const MellowSectionHeader('Внешний вид'),
           _Group(
             children: <Widget>[

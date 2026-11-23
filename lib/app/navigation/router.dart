@@ -13,6 +13,7 @@ import 'package:mellow/features/settings/presentation/accounts_screen.dart';
 import 'package:mellow/features/settings/presentation/appearance_screen.dart';
 import 'package:mellow/features/settings/presentation/privacy_screen.dart';
 import 'package:mellow/features/settings/presentation/settings_screen.dart';
+import 'package:mellow/features/settings/presentation/storage_screen.dart';
 import 'package:mellow/features/sync/presentation/sync_screen.dart';
 
 /// Router of the app.
@@ -87,6 +88,10 @@ GoRouter createRouter({String initialLocation = AppRoutes.conversations}) {
       GoRoute(
         path: AppRoutes.appearance,
         builder: (context, state) => const AppearanceScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.storage,
+        builder: (context, state) => const StorageScreen(),
       ),
       GoRoute(
         path: AppRoutes.privacy,

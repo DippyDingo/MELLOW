@@ -83,6 +83,22 @@ final container = createContainer(database: db);
 Эти тесты не запускались в среде разработки (нет Flutter SDK) — первый прогон
 на вашей машине описан в [`VERIFY.md`](VERIFY.md).
 
+## 4.2. Сборка и установка (вне спринтов)
+
+* `.github/workflows/build-apk.yml` — три задачи: `check` (analyze, тесты,
+  архитектурные правила), `apk` (debug APK → артефакт `mellow-debug-apk`),
+  `ios` (компиляция без подписи). Это первый реальный прогон компилятора для
+  кода, написанного без локального Flutter.
+* `tool/platform/prepare_android.py` проверен вручную на макете манифеста:
+  вставляет `<queries>`, `allowBackup=false`, `flutter_deeplinking_enabled=false`,
+  intent-filter схемы redirect и `minSdk 23`; повторный запуск ничего не меняет.
+* `test/core/update_check_test.dart` — проверка обновлений на `MockClient`:
+  новый sha, тот же sha, отсутствие канала, 404, пустой и битый ответ.
+* `test/features/storage_controller_test.dart` — подсчёт хранилища и удаление
+  по аккаунту/целиком: аккаунты и люди остаются, сервер не затрагивается.
+* `test/services/mail_sync_service_test.dart` — группа `local deletion`:
+  `deleteAccountThreads` удаляет письма одного аккаунта и не трогает остальные.
+
 ## 5. Критерии готовности (по спецификации 8.1)
 
 | Проверка | Статус Sprint 01 |

@@ -1,8 +1,12 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mellow/app/navigation/routes.dart';
+import 'package:mellow/core/config/app_config.dart';
 import 'package:mellow/core/theme/mellow_theme.dart';
 import 'package:mellow/core/widgets/mellow_scaffold.dart';
 import 'package:mellow/features/onboarding/application/gmail_connect_controller.dart';
@@ -24,19 +28,54 @@ class GmailConnectScreen extends ConsumerStatefulWidget {
 class _GmailConnectScreenState extends ConsumerState<GmailConnectScreen> {
   final TextEditingController _redirectController = TextEditingController();
 
+  /// Listens for `com.googleusercontent.apps...:/oauth2redirect?code=...`.
+  final AppLinks _appLinks = AppLinks();
+  StreamSubscription<Uri>? _linkSubscription;
+
   @override
   void initState() {
     super.initState();
+    // Subscribe before the browser opens: a cold start delivers the redirect
+    // through this stream, and missing it would strand the user on this screen.
+    _linkSubscription = _appLinks.uriLinkStream.listen(
+      _onRedirect,
+      onError: (Object _) {},
+    );
     // Kick the flow after the first frame so the progress UI is visible.
     WidgetsBinding.instance.addPostFrameCallback((_) => _start());
   }
 
   @override
   void dispose() {
+    _linkSubscription?.cancel();
     _redirectController.dispose();
     // The controller is reset by the next `start()`, never from `dispose`:
     // touching a provider while the widget tree is being torn down is not safe.
     super.dispose();
+  }
+
+  bool get _isGmailConfigured => AppConfig.fromEnvironment.isGoogleConfigured;
+
+  /// Handles the redirect delivered by Android/iOS.
+  ///
+  /// Only URIs that carry `code` or `error` are treated as the answer to this
+  /// flow: ordinary deep links must not be mistaken for an authorisation reply.
+  void _onRedirect(Uri uri) {
+    final isAnswer =
+        uri.queryParameters.containsKey('code') ||
+        uri.queryParameters.containsKey('error');
+    if (!isAnswer) return;
+    if (!mounted) return;
+
+    final state = ref.read(gmailConnectControllerProvider);
+    if (state.step == GmailConnectStep.done ||
+        state.step == GmailConnectStep.exchangingCode ||
+        state.step == GmailConnectStep.verifying ||
+        state.step == GmailConnectStep.syncing) {
+      return;
+    }
+
+    ref.read(gmailConnectControllerProvider.notifier).complete(uri.toString());
   }
 
   Future<void> _start() async {
@@ -104,6 +143,22 @@ class _GmailConnectScreenState extends ConsumerState<GmailConnectScreen> {
             active: state.step == GmailConnectStep.syncing,
           ),
           const SizedBox(height: MellowSpacing.xl),
+          if (!_isGmailConfigured)
+            Container(
+              margin: const EdgeInsets.only(bottom: MellowSpacing.md),
+              padding: const EdgeInsets.all(MellowSpacing.md),
+              decoration: BoxDecoration(
+                color: tokens.warning.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(MellowRadius.md),
+                border: Border.all(color: tokens.warning.withOpacity(0.35)),
+              ),
+              child: Text(
+                'Эта сборка собрана без GOOGLE_CLIENT_ID, поэтому вход в Gmail '
+                'не сможет открыть согласие Google. Всё остальное приложение '
+                '(интерфейс, темы, локальные данные) работает.',
+                style: theme.bodySmall?.copyWith(color: tokens.warning),
+              ),
+            ),
           if (state.message != null && state.error == null)
             Text(state.message!, style: theme.bodyMedium),
           if (state.error != null)

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:mellow/core/theme/mellow_theme.dart';
+import 'package:mellow/core/utils/update_check.dart';
 import 'package:mellow/core/widgets/mellow_scaffold.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// About screen: version, product promise and honest limitations.
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 
-  static const String version = '0.1.0';
+  static const String version = '0.3.0';
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +39,36 @@ class AboutScreen extends StatelessWidget {
               style: textTheme.bodySmall?.copyWith(color: tokens.onSurfaceMuted),
             ),
           ),
+          const SizedBox(height: MellowSpacing.md),
+          Center(
+            child: Text(
+              UpdateChannel.buildSha.isEmpty
+                  ? 'Сборка: локальная'
+                  : 'Сборка: ${UpdateChannel.buildSha}',
+              style: textTheme.labelSmall?.copyWith(color: tokens.onSurfaceMuted),
+            ),
+          ),
+          if (UpdateChannel.isConfigured)
+            Center(
+              child: TextButton.icon(
+                onPressed: () => launchUrl(
+                  Uri.parse(UpdateChannel.actionsUrl),
+                  mode: LaunchMode.externalApplication,
+                ),
+                icon: const Icon(Icons.download_outlined, size: 16),
+                label: const Text('Скачать свежий APK'),
+              ),
+            ),
+          if (UpdateChannel.isConfigured)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: MellowSpacing.xl),
+              child: Text(
+                'Тестовые сборки не обновляются сами: новый APK ставится '
+                'вручную поверх старого, данные сохраняются.',
+                textAlign: TextAlign.center,
+                style: textTheme.labelSmall?.copyWith(color: tokens.onSurfaceMuted),
+              ),
+            ),
           const SizedBox(height: MellowSpacing.xl),
           Text(
             'Email, который ощущается как мессенджер.',

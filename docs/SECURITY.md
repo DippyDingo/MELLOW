@@ -18,7 +18,11 @@
 
 * iOS — Keychain с `first_unlock_this_device`: токен доступен после первой
   разблокировки и не уезжает в iCloud-бэкап;
-* Android — `EncryptedSharedPreferences`;
+* Android — кастомные шифры flutter_secure_storage ≥ 10 (RSA-OAEP + AES-GCM)
+  поверх Keystore. `encryptedSharedPreferences` из 9.x объявлен устаревшим и в
+  версии 10+ удалён — при обновлении плагина это единственное место правки;
+* `android:allowBackup="false"`: резервная копия Keystore-ключа бесполезна на
+  другом устройстве и даёт `InvalidKeyException` при восстановлении;
 * ключи namespaced: `account.<id>.access_token`, `.refresh_token`, `.expires_at`,
   `.app_password` — отключение одного аккаунта не задевает остальные;
 * `isAvailable()` делает пробную запись/чтение/удаление: сломанный Keystore

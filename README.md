@@ -13,6 +13,16 @@ Android + iOS), которое подключается к существующ�
 
 ---
 
+## Установить на телефон
+
+Готовый APK собирается в CI при каждом изменении ветки
+`arena/ef9ea789-mellow`:
+[Actions → Build installable APK](https://github.com/DippyDingo/MELLOW/actions/workflows/build-apk.yml)
+→ последний запуск → **Artifacts** → `mellow-debug-apk.zip`.
+
+Подробно (включая сборку с входом в Gmail и установку на iOS) —
+[`docs/INSTALL.md`](docs/INSTALL.md).
+
 ## Быстрый старт
 
 ```bash
@@ -78,7 +88,8 @@ flutter run --dart-define=MELLOW_DEMO_SEED=true
 * Яндекс, Mail.ru, Outlook — Sprint 06 (экран подключения говорит об этом прямо);
 * отправки писем и очереди отправки — Sprint 05 (Composer сообщает это на экране);
 * фоновой синхронизации и уведомлений — Sprint 07;
-* полнотекстового поиска и Focus Mode — Sprint 08.
+* полнотекстового поиска и Focus Mode — Sprint 08;
+* автообновления тестовой сборки — новый APK ставится вручную.
 
 Известное состояние среды разработки: код спринтов писался без установленного
 Flutter SDK, поэтому `flutter analyze` / `flutter test` **не запускались** —
@@ -95,6 +106,7 @@ lib/
 ├── domain/         # сущности и контракты репозиториев (без Flutter-зависимостей UI)
 ├── data/           # Drift-схема, мапперы, реализации репозиториев, демо-данные
 ├── providers/      # контракт MailProvider, Gmail API + OAuth/PKCE, MIME, discovery
+│                   # (фабрика адаптеров: provider_factory.dart)
 ├── services/       # движок синхронизации, курсоры, сборка диалогов
 ├── features/       # accounts, conversations, contacts, favorites, composer,
 │                   # messages, settings, onboarding, sync
@@ -117,4 +129,5 @@ lib/
 | [`docs/UI_GUIDELINES.md`](docs/UI_GUIDELINES.md) | Токены, типографика, паттерны экранов |
 | [`docs/TESTING.md`](docs/TESTING.md) | Стратегия тестов и критерии готовности |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Спринты 01–08 и их результаты |
+| [`docs/INSTALL.md`](docs/INSTALL.md) | Как поставить APK на телефон и что проверить |
 | [`docs/VERIFY.md`](docs/VERIFY.md) | Как проверить приложение своими руками (сборка, тесты, Gmail) |

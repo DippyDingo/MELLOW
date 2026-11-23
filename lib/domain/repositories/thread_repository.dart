@@ -90,6 +90,13 @@ abstract interface class ThreadRepository {
     String providerThreadId,
   );
 
+  /// Deletes all synced mail of one account: its conversations, messages,
+  /// participants and attachments.
+  ///
+  /// Local only — the mailbox on the server is untouched. Contacts survive
+  /// because a person exists independently of a mailbox.
+  Future<void> deleteAccountThreads(String accountId);
+
   /// Replaces the participant list of a conversation (idempotent).
   Future<void> replaceParticipants(
     String threadId,
