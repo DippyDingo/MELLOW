@@ -4,6 +4,7 @@ import 'package:mellow/app/navigation/app_shell.dart';
 import 'package:mellow/app/navigation/routes.dart';
 import 'package:mellow/features/composer/presentation/composer_screen.dart';
 import 'package:mellow/features/contacts/presentation/contact_screen.dart';
+import 'package:mellow/features/contacts/presentation/contacts_screen.dart';
 import 'package:mellow/features/conversations/presentation/conversations_screen.dart';
 import 'package:mellow/features/conversations/presentation/thread_screen.dart';
 import 'package:mellow/features/favorites/presentation/favorites_screen.dart';

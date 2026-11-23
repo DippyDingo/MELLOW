@@ -100,7 +100,7 @@ void main() {
     });
 
     test('an empty answer does not crash', () async {
-      final status = await checker(body: <Map<String, dynamic>>const []).check();
+      final status = await checker(body: const <Map<String, dynamic>>[]).check();
       expect(status.error, isNotNull);
     });
 
