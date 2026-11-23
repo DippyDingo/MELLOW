@@ -10,9 +10,10 @@
 APK собирается автоматически при каждом изменении в ветке
 `arena/ef9ea789-mellow` и складывается в артефакт сборки.
 
-**Проверенная сборка:** `mellow-b14464b-debug.apk` (88 МБ, debug),
-прогон [45215924220](https://github.com/DippyDingo/MELLOW/actions/runs/45215924220) —
-все три задачи зелёные: анализ, 236 тестов, APK, iOS (компиляция).
+**Проверенная сборка:** `mellow-22f11d4-debug.apk` (88 МБ, debug),
+прогон [45258791306](https://github.com/DippyDingo/MELLOW/actions/runs/45258791306) —
+все три задачи зелёные: анализ, 243 теста, APK, iOS (компиляция).
+В ней работают отправка и ответы из Gmail (см. пункты 8–10 ниже).
 
 1. Откройте
    [`Actions → Build installable APK`](https://github.com/DippyDingo/MELLOW/actions/workflows/build-apk.yml).
