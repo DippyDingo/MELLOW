@@ -8,7 +8,9 @@ name: Build installable APK
 # repository is overwritten by the generation step.
 #
 # Run it from the Actions tab ("Run workflow") or push to the arena branch.
-# The finished file is attached to the run as `mellow-debug-apk`.
+# The finished file is attached to the run as `mellow-debug-apk`, and also
+# published as a `build-<sha7>` release — that release is the update channel
+# the app reads itself (see docs/UPDATES.md).
 
 on:
   workflow_dispatch:
@@ -201,6 +203,35 @@ jobs:
           path: build/app/outputs/flutter-apk/mellow-*-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      # The release is the update channel the app reads (docs/UPDATES.md).
+      # A tag per build makes "is there something newer than my sha?" a single
+      # API call, and the attached APK is what the app downloads.
+      - name: Publish release for the updater
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA::7}"
+          tag="build-${short_sha}"
+          apk="build/app/outputs/flutter-apk/mellow-${short_sha}-debug.apk"
+
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release $tag already exists — uploading the APK into it"
+            gh release upload "$tag" "$apk" --repo "$GITHUB_REPOSITORY" --clobber
+            exit 0
+          fi
+
+          notes="Сборка ${short_sha} из ветки ${GITHUB_REF_NAME}.
+          Изменения: см. историю коммитов. Установка — docs/INSTALL.md."
+
+          gh release create "$tag" "$apk" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Сборка ${short_sha}" \
+            --notes "$notes" \
+            --target "$GITHUB_SHA" \
+            --prerelease
 
       # Same reason as in the check job: the build log may be unreachable, but
       # the commit comment is not.
