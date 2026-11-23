@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mellow/core/theme/mellow_theme.dart';
 import 'package:mellow/core/utils/update_check.dart';
 import 'package:mellow/features/updates/application/update_controller.dart';
+import 'package:mellow/providers/installer/apk_installer.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Opens the «what's new» sheet. Callable from the banner and from settings.
@@ -169,15 +168,30 @@ class _DownloadProgress extends StatelessWidget {
 }
 
 /// The last step: hand the file to Android's own installer.
-class _InstallBlock extends StatelessWidget {
+///
+/// Keeps the answer of the installer on screen, because the two failures that
+/// matter — «нет разрешения» and «файла нет» — need an action, not a toast that
+/// disappears while the user is still reading it.
+class _InstallBlock extends ConsumerStatefulWidget {
   const _InstallBlock({required this.state});
 
   final UpdateState state;
 
   @override
+  ConsumerState<_InstallBlock> createState() => _InstallBlockState();
+}
+
+class _InstallBlockState extends ConsumerState<_InstallBlock> {
+  static const ApkInstaller _installer = ApkInstaller();
+
+  InstallResult? _last;
+  bool _busy = false;
+
+  @override
   Widget build(BuildContext context) {
     final MellowColors tokens = MellowColors.of(context);
     final TextTheme textTheme = Theme.of(context).textTheme;
+    final String? path = widget.state.filePath;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,7 +199,7 @@ class _InstallBlock extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
-            onPressed: () => _install(context),
+            onPressed: path == null || _busy ? null : _install,
             icon: const Icon(Icons.system_update_alt),
             label: const Text('Установить'),
           ),
@@ -196,37 +210,49 @@ class _InstallBlock extends StatelessWidget {
           'сохраняются при обновлении поверх.',
           style: textTheme.bodySmall?.copyWith(color: tokens.onSurfaceMuted),
         ),
+        if (_last != null && !_last!.isSuccess) ...<Widget>[
+          const SizedBox(height: MellowSpacing.md),
+          Text(
+            _last!.message ?? 'Не удалось открыть установщик',
+            style: textTheme.bodySmall?.copyWith(color: tokens.danger),
+          ),
+          if (_last!.outcome == InstallOutcome.permissionRequired) ...<Widget>[
+            const SizedBox(height: MellowSpacing.sm),
+            OutlinedButton.icon(
+              onPressed: _installer.openInstallSettings,
+              icon: const Icon(Icons.settings_outlined, size: 16),
+              label: const Text('Открыть настройки Android'),
+            ),
+          ],
+          if (_last!.outcome == InstallOutcome.unsupported) ...<Widget>[
+            const SizedBox(height: MellowSpacing.sm),
+            OutlinedButton.icon(
+              onPressed: _openReleases,
+              icon: const Icon(Icons.open_in_new, size: 16),
+              label: const Text('Открыть страницу сборок'),
+            ),
+          ],
+        ],
       ],
     );
   }
 
-  Future<void> _install(BuildContext context) async {
-    final Future<void> Function(String path)? opener = _opener;
-    final String? path = state.filePath;
+  Future<void> _install() async {
+    final String? path = widget.state.filePath;
     if (path == null) return;
-
-    if (opener == null) {
-      // The plugin is not wired into this build yet.
-      await launchUrl(
-        Uri.parse(UpdateChannel.releasesUrl),
-        mode: LaunchMode.externalApplication,
-      );
-      return;
-    }
-
-    if (!await File(path).exists()) {
-      return;
-    }
-    await opener(path);
+    setState(() => _busy = true);
+    final InstallResult result = await _installer.install(path);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _last = result;
+    });
   }
 
-  /// Injected by the app once the `open_filex` plugin is available; keeps this
-  /// widget buildable and testable before the plugin is added to `pubspec`.
-  static Future<void> Function(String path)? _opener;
-}
-
-/// Lets the composition root connect the platform installer.
-// ignore: use_setters_to_change_properties
-void registerInstaller(Future<void> Function(String path) opener) {
-  _InstallBlock._opener = opener;
+  Future<void> _openReleases() {
+    return launchUrl(
+      Uri.parse(UpdateChannel.releasesUrl),
+      mode: LaunchMode.externalApplication,
+    );
+  }
 }
