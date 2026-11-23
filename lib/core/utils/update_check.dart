@@ -47,6 +47,7 @@ class UpdateRelease {
     this.title,
     this.notes = '',
     this.publishedAt,
+    this.createdAt,
   });
 
   /// Release tag, `build-<sha7>`.
@@ -68,6 +69,9 @@ class UpdateRelease {
   final String? notes;
 
   final DateTime? publishedAt;
+
+  /// When the release object was created; the channel orders by this.
+  final DateTime? createdAt;
 
   /// Size in whole megabytes, for a label a person can read.
   int get sizeMb => (sizeBytes / (1024 * 1024)).round();
@@ -148,7 +152,7 @@ class UpdateChecker {
   final String _currentSha;
 
   static const String _apiHost = 'api.github.com';
-  static const int _assetLimit = 10;
+  static const int _releaseLimit = 10;
 
   Future<UpdateStatus> check({String branch = 'main'}) async {
     if (_repository.isEmpty) {
@@ -161,7 +165,7 @@ class UpdateChecker {
     final Uri uri = Uri.https(
       _apiHost,
       '/repos/$_repository/releases',
-      <String, String>{'per_page': '$_assetLimit'},
+      <String, String>{'per_page': '$_releaseLimit'},
     );
 
     final http.Response response;
@@ -227,8 +231,10 @@ class UpdateChecker {
     }
     if (parsed.isEmpty) return null;
     parsed.sort((UpdateRelease a, UpdateRelease b) {
-      final DateTime x = a.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final DateTime y = b.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final DateTime x =
+          a.createdAt ?? a.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final DateTime y =
+          b.createdAt ?? b.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       return y.compareTo(x);
     });
     return parsed.first;
@@ -264,6 +270,7 @@ class UpdateChecker {
         title: raw['name'] is String ? raw['name'] as String : null,
         notes: raw['body'] is String ? raw['body'] as String : '',
         publishedAt: _date(raw['published_at']) ?? _date(raw['created_at']),
+        createdAt: _date(raw['created_at']),
       );
     }
     return null;
