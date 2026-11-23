@@ -41,7 +41,9 @@ dependencies:
   url_launcher: ^6.3.0
 
   # Receiving the OAuth redirect: com.googleusercontent.apps.<id>:/oauth2redirect
-  app_links: ^7.2.2
+  # 6.x is the line that still supports Dart 3.5 / Flutter 3.24; 7.x needs
+  # Dart 3.12 and would break `flutter pub get` on this SDK.
+  app_links: ^6.4.1
 
 dev_dependencies:
   flutter_test:
