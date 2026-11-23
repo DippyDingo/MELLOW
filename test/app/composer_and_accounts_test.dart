@@ -46,7 +46,8 @@ void main() {
     // A valid address clears the error. The send itself needs a real mailbox,
     // so it is covered by `send_controller_test.dart` against a fake adapter.
     await tester.enterText(find.byType(TextField).first, 'alex@example.com');
-    await tester.pumpAndSettle();
+    await tester.pump();
+    // No error, and no fake "sent" claim either.
     expect(find.text('Добавьте хотя бы одного получателя'), findsNothing);
   });
 

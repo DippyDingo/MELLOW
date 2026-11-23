@@ -11,7 +11,6 @@ import 'package:mellow/domain/entities/account.dart';
 import 'package:mellow/domain/entities/attachment.dart';
 import 'package:mellow/domain/entities/message.dart';
 import 'package:mellow/domain/security/secure_token_storage.dart';
-import 'package:mellow/features/accounts/application/accounts_controller.dart';
 import 'package:mellow/features/composer/application/send_controller.dart';
 import 'package:mellow/providers/contracts/incremental_mail_provider.dart';
 import 'package:mellow/providers/contracts/mail_provider.dart';
@@ -249,7 +248,6 @@ void main() {
       status: AccountStatus.connected,
     );
     await DriftAccountRepository(db).saveAccount(imap);
-    container.invalidate(accountsProvider);
 
     await container.read(sendControllerProvider.notifier).send(
           const OutgoingDraft(

@@ -111,8 +111,11 @@ class SendController extends StateNotifier<SendState> {
   Future<void> send(OutgoingDraft draft) async {
     if (state.isSending) return;
 
-    final accounts = _ref.read(accountsProvider).valueOrNull ?? const <Account>[];
-    final account = accounts.where((a) => a.id == draft.accountId).firstOrNull;
+    // Read the repository, not the stream provider: the composer can be the
+    // first screen to ask for accounts, and a not-yet-loaded AsyncValue would
+    // make a perfectly valid mailbox look missing.
+    final account =
+        await _ref.read(accountRepositoryProvider).getAccount(draft.accountId);
     if (account == null) {
       state = const SendState(error: 'Аккаунт не найден. Подключите ящик заново.');
       return;
