@@ -5,6 +5,7 @@ import 'package:mellow/core/utils/update_check.dart';
 import 'package:mellow/data/database/app_database.dart';
 import 'package:mellow/data/repositories/drift_settings_repository.dart';
 import 'package:mellow/domain/repositories/settings_repository.dart';
+import 'package:mellow/features/settings/application/settings_controller.dart';
 import 'package:mellow/features/updates/application/update_controller.dart';
 
 /// The controller talks to GitHub through [UpdateChecker], which is created
