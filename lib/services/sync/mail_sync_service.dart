@@ -248,6 +248,20 @@ class MailSyncService {
     );
   }
 
+  /// The stored copy of [message], found by provider id, then by `Message-ID`.
+  Future<Message?> _findStored(Message message) async {
+    if (message.providerId != null) {
+      final byProvider =
+          await threads.findByProviderMessageId(accountId, message.providerId!);
+      if (byProvider != null) return byProvider;
+    }
+    final header = message.messageIdHeader;
+    if (header != null && header.trim().isNotEmpty) {
+      return threads.findByMessageIdHeader(header.trim());
+    }
+    return null;
+  }
+
   /// Persists one message and returns what happened to it.
   Future<_PersistOutcome> _persist(Message message) async {
     final own = normalizeEmail(ownAddress);
@@ -260,7 +274,14 @@ class MailSyncService {
       contact = await _ensureContact(sender, message.from.displayName);
     }
 
-    // 2. Conversation: provider thread id -> References chain -> new thread.
+    // 2. Conversation: already stored -> provider thread id -> References
+    //    chain -> new thread.
+    //
+    // "Already stored" comes first on purpose. A full pass sees old messages
+    // again, and they arrive with no provider thread id; without this check
+    // every re-sync would hand an existing message a brand-new conversation
+    // and split one thread into two.
+    final storedCopy = await _findStored(message);
     final providerThreadId = message.threadId.isEmpty ? null : message.threadId;
     final knownThread = providerThreadId == null
         ? null
@@ -279,12 +300,13 @@ class MailSyncService {
       }
     }
 
-    final conversationId = _router.resolve(
-      message: message,
-      providerThreadId: providerThreadId,
-      knownConversationOfProviderThread: knownThread?.id,
-      conversationOfMessage: (header) => ancestorThreads[header],
-    );
+    final conversationId = storedCopy?.threadId ??
+        _router.resolve(
+          message: message,
+          providerThreadId: providerThreadId,
+          knownConversationOfProviderThread: knownThread?.id,
+          conversationOfMessage: (header) => ancestorThreads[header],
+        );
 
     final existingThread = await threads.getThread(conversationId);
     if (existingThread == null) {
@@ -312,9 +334,6 @@ class MailSyncService {
 
     // 3. Message itself: the repository deduplicates on provider id and
     //    RFC Message-ID, so a repeated sync cannot create a duplicate.
-    final existing = message.providerId == null
-        ? null
-        : await threads.findByProviderMessageId(accountId, message.providerId!);
     final stored = await threads.upsertMessage(
       message.copyWith(threadId: conversationId),
     );
