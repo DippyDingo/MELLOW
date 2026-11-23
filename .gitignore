@@ -1,0 +1,26 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Generated drift code (regenerate with: dart run build_runner build)
+# Committed on purpose? No: generated artifacts stay out of git.
+*.g.dart
+
+# Platform folders are generated (tool/bootstrap.sh or CI) and never committed:
+# they depend on the local Flutter version and carry machine-specific paths.
+/android/
+/ios/
+
+# OS
+.DS_Store
+Thumbs.db

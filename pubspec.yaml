@@ -1,0 +1,63 @@
+name: mellow
+description: "Mellow — email, which feels like a messenger."
+publish_to: "none"
+version: 0.3.0+3
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # Navigation
+  go_router: ^14.2.7
+
+  # Local database (SQLite)
+  drift: ^2.20.0
+  sqlite3_flutter_libs: ^0.5.24
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+  # Identifiers
+  uuid: ^4.5.1
+
+  # Networking (mail providers)
+  http: ^1.2.2
+
+  # PKCE (SHA-256 for the OAuth code challenge) and MIME encoding
+  crypto: ^3.0.5
+
+  # Secrets: OAuth tokens and app passwords live in the OS keystore
+  flutter_secure_storage: ^9.2.2
+
+  # Opening the provider's consent page and catching the redirect
+  url_launcher: ^6.3.0
+
+  # Receiving the OAuth redirect: com.googleusercontent.apps.<id>:/oauth2redirect
+  # Pinned exactly, for two independent reasons:
+  #  * 7.x needs Dart 3.12 / Flutter 3.44 and would break `flutter pub get`;
+  #  * 6.4+ switched its android/build.gradle to the "Flutter Gradle plugin"
+  #    API (`flutter { compileSdkVersion … }`), which only exists from Flutter
+  #    3.29 — on Flutter 3.24 the APK build dies evaluating app_links.
+  # 6.3.3 is the last release with a self-contained Gradle script, and it
+  # already provides everything used here (`AppLinks().uriLinkStream`).
+  app_links: 6.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.11
+  drift_dev: ^2.20.0
+
+flutter:
+  uses-material-design: true
