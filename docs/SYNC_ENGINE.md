@@ -75,8 +75,10 @@ UI обновляется автоматически (StreamProvider)
 * Поэтому: синхронизация при запуске и при возврате в foreground; фон —
   best-effort.
 * Push требует серверной инфраструктуры (Gmail Watch → Pub/Sub, Graph
-  subscriptions, IMAP IDLE нестабилен на мобильных). В Sprint 01 push не
-  обещается пользователю.
+  subscriptions, IMAP IDLE нестабилен на мобильных). В Sprint 03 push не
+  обещается пользователю: `ProviderCapabilities.supportsPush == false` у
+  Gmail-адаптера, синхронизация — pull-based (при запуске, по кнопке, дальше —
+  Sprint 07).
 
 ## 7. Наблюдаемость
 

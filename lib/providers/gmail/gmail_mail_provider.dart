@@ -77,12 +77,15 @@ class GmailMailProvider extends BaseMailProvider
   @override
   ProviderCapabilities get capabilities => const ProviderCapabilities(
         supportsThreads: true,
-        supportsPush: true,
+        // Gmail push needs a Cloud Pub/Sub backend that Mellow does not have
+        // yet, so the honest capability is "no": sync is pull-based.
+        supportsPush: false,
         supportsSearch: true,
         supportsLabels: true,
         supportsReadReceipts: false,
         supportsAttachments: true,
         supportsIncrementalSync: true,
+        // Gmail rejects messages above 25 MB, encoded size included.
         maxAttachmentBytes: 25 * 1024 * 1024,
       );
 
@@ -227,9 +230,10 @@ class GmailMailProvider extends BaseMailProvider
   /// must then do a full reconciliation instead of trusting the cursor.
   @override
   Future<List<String>?> changedMessageIds(String cursor) async {
-    final ids = <String>[];
+    // A message can appear in several history records (added, then labelled),
+    // so ids are de-duplicated while keeping the provider's order.
+    final ids = <String>{};
     String? pageToken;
-    String? newHistoryId;
 
     do {
       final page = await _client.listHistory(
@@ -238,11 +242,10 @@ class GmailMailProvider extends BaseMailProvider
       );
       if (page == null) return null;
       ids.addAll(page.messageIdsAdded);
-      newHistoryId = page.newHistoryId ?? newHistoryId;
       pageToken = page.nextPageToken;
     } while (pageToken != null);
 
-    return ids;
+    return ids.toList(growable: false);
   }
 
   @override
@@ -344,6 +347,10 @@ class GmailMailProvider extends BaseMailProvider
     );
   }
 
+  /// Parses one Gmail message.
+  ///
+  /// `Message.threadId` here is the provider thread id (a transient value):
+  /// the sync engine maps it to a local conversation id before persisting.
   Message _toMessage(Map<String, dynamic> json, {String? threadId}) {
     return GmailMessageParser.toMessage(
       json,

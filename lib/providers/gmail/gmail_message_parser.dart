@@ -47,6 +47,12 @@ abstract final class GmailMessageParser {
   ///
   /// [accountId] and [localId] are supplied by the caller: Gmail ids are never
   /// used as Mellow primary keys.
+  ///
+  /// [threadId] is the **provider** thread id. It travels inside
+  /// `Message.threadId` as a transient placeholder and is replaced with the
+  /// local conversation id by `MailSyncService` before the message is stored —
+  /// adapters cannot know the local conversation id, and inventing one here
+  /// would make conversation routing untestable.
   static Message toMessage(
     Map<String, dynamic> json, {
     required String accountId,

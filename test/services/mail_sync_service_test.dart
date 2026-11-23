@@ -393,6 +393,21 @@ void main() {
       );
     });
 
+    test('ids that no longer resolve are skipped, not counted as fetched',
+        () async {
+      provider.pages.add(incoming(providerId: 'p1'));
+      await service.sync(account: account, provider: provider);
+
+      // Google reports deleted messages in history as well.
+      provider.incrementalIds = <String>['deleted-id'];
+
+      final result = await service.sync(account: account, provider: provider);
+
+      expect(result.fetched, 0);
+      expect(result.created, 0);
+      expect(result.wasFullSync, isFalse);
+    });
+
     test('falls back to a full pass when the cursor is stale', () async {
       provider.pages.add(incoming(providerId: 'p1'));
       await service.sync(account: account, provider: provider);

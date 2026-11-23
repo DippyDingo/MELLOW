@@ -188,6 +188,11 @@ void main() {
     expect(capabilities.supportsThreads, isTrue);
     expect(capabilities.supportsIncrementalSync, isTrue);
     expect(
+      capabilities.supportsPush,
+      isFalse,
+      reason: 'push needs a Pub/Sub backend that does not exist yet',
+    );
+    expect(
       capabilities.supportsReadReceipts,
       isFalse,
       reason: 'email never guarantees read receipts',

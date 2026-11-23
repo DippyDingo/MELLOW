@@ -174,11 +174,15 @@ class MailSyncService {
 
     var created = 0;
     var updated = 0;
+    var fetched = 0;
     final touchedThreads = <String>{};
 
     for (final providerId in changedIds) {
+      // History reports deleted and moved messages too; `null` means "nothing
+      // to store", not an error, so it is skipped quietly.
       final message = await provider.getMessage(providerId);
       if (message == null) continue;
+      fetched++;
       final outcome = await _persist(message);
       if (outcome.isNew) {
         created++;
@@ -190,7 +194,8 @@ class MailSyncService {
     }
 
     return SyncResult(
-      fetched: changedIds.length,
+      // Not `changedIds.length`: ids that no longer resolve are not messages.
+      fetched: fetched,
       created: created,
       updated: updated,
       threads: touchedThreads.length,
