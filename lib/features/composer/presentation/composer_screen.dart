@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mellow/app/di/providers.dart';
 import 'package:mellow/app/navigation/routes.dart';
 import 'package:mellow/core/theme/mellow_theme.dart';
 import 'package:mellow/core/utils/email_address.dart';
@@ -9,7 +10,6 @@ import 'package:mellow/domain/entities/account.dart';
 import 'package:mellow/domain/entities/message.dart';
 import 'package:mellow/features/accounts/application/accounts_controller.dart';
 import 'package:mellow/features/composer/application/send_controller.dart';
-import 'package:mellow/features/messages/application/thread_detail_controller.dart';
 
 /// Smart Composer (spec 2.5).
 ///

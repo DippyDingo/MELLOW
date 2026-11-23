@@ -308,7 +308,7 @@ class DriftThreadRepository implements ThreadRepository {
       MessagesCompanion(
         deliveryStatus: Value(status.name),
         isOutgoing: const Value(true),
-        if (movesThread) conversationId: Value(threadId),
+        conversationId: movesThread ? Value(threadId) : const Value.absent(),
       ),
     );
 

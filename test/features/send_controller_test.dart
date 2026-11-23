@@ -1,13 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mellow/app/di/providers.dart';
+import 'package:mellow/core/config/app_config.dart';
 import 'package:mellow/core/errors/app_exception.dart';
 import 'package:mellow/data/database/app_database.dart';
 import 'package:mellow/data/repositories/drift_account_repository.dart';
 import 'package:mellow/data/repositories/drift_thread_repository.dart';
 import 'package:mellow/data/security/flutter_secure_token_storage.dart';
 import 'package:mellow/domain/entities/account.dart';
+import 'package:mellow/domain/entities/attachment.dart';
 import 'package:mellow/domain/entities/message.dart';
+import 'package:mellow/domain/security/secure_token_storage.dart';
+import 'package:mellow/features/accounts/application/accounts_controller.dart';
 import 'package:mellow/features/composer/application/send_controller.dart';
 import 'package:mellow/providers/contracts/incremental_mail_provider.dart';
 import 'package:mellow/providers/contracts/mail_provider.dart';
@@ -79,7 +83,7 @@ class RecordingProvider extends BaseMailProvider
   Future<void> deleteMessage(String providerMessageId) async {}
 
   @override
-  Future<List<int>> downloadAttachment(attachment) async => <int>[];
+  Future<List<int>> downloadAttachment(Attachment attachment) async => <int>[];
 
   @override
   Future<Attachment> uploadAttachment(String messageId, String filePath) async =>
@@ -102,7 +106,7 @@ class FakeFactory implements MailProviderFactory {
   AppConfig get config => throw UnimplementedError();
 
   @override
-  Object get tokenStorage => throw UnimplementedError();
+  SecureTokenStorage get tokenStorage => throw UnimplementedError();
 
   @override
   MailProvider create(Account account) => provider;

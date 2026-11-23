@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mellow/app/di/providers.dart';
 import 'package:mellow/core/config/app_config.dart';
 import 'package:mellow/core/errors/app_exception.dart';
+import 'package:mellow/core/utils/email_address.dart';
 import 'package:mellow/domain/entities/account.dart';
 import 'package:mellow/domain/entities/message.dart';
 import 'package:mellow/features/accounts/application/accounts_controller.dart';
