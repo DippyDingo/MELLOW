@@ -5,7 +5,6 @@ import 'package:mellow/core/utils/update_check.dart';
 import 'package:mellow/core/widgets/mellow_scaffold.dart';
 import 'package:mellow/core/widgets/update_banner.dart';
 import 'package:mellow/features/updates/application/update_controller.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// About screen: version, update state, product promise and honest limits.
 class AboutScreen extends ConsumerWidget {
