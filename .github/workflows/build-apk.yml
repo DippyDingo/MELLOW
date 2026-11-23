@@ -207,8 +207,11 @@ jobs:
       # The release is the update channel the app reads (docs/UPDATES.md).
       # A tag per build makes "is there something newer than my sha?" a single
       # API call, and the attached APK is what the app downloads.
+      # Only real pushes to the branch may publish: a pull-request run builds a
+      # synthetic merge commit that is never installable, and a release for it
+      # would push that phantom tag into the update channel.
       - name: Publish release for the updater
-        if: success()
+        if: success() && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
