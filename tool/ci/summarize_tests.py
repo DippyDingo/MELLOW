@@ -43,6 +43,7 @@ def parse(path: Path) -> dict:
     by_id: dict[int, dict] = {}
     suites: dict[int, str] = {}
     failures: list[dict] = []
+    orphans: list[dict] = []
     success: bool | None = None
     started = 0
 
@@ -74,6 +75,15 @@ def parse(path: Path) -> dict:
         elif kind == "error":
             entry = by_id.get(event.get("testID", -1))
             if entry is None:
+                # Errors raised outside a test (a late async failure, or one
+                # reported by the binding) carry no testID. Dropping them hides
+                # the only explanation of why a test failed.
+                orphans.append(
+                    {
+                        "error": (event.get("error") or "").strip(),
+                        "stack": (event.get("stackTrace") or "").strip(),
+                    }
+                )
                 continue
             entry["errors"].append(
                 {
@@ -95,7 +105,13 @@ def parse(path: Path) -> dict:
         elif kind == "done":
             success = event.get("success")
 
-    return {"tests": tests, "failures": failures, "success": success, "started": started}
+    return {
+        "tests": tests,
+        "failures": failures,
+        "orphans": orphans,
+        "success": success,
+        "started": started,
+    }
 
 
 def _summary(parsed: dict) -> list[str]:
@@ -150,6 +166,11 @@ def render(parsed: dict, comment: bool = False) -> str:
             parts += _failure_block(entry) + [""]
         if len(failures) > MAX_FAILURES:
             parts.append(f"… {len(failures) - MAX_FAILURES} more failures omitted.")
+    orphans = parsed.get("orphans") or []
+    if orphans and failures:
+        parts.append("#### uncaught errors")
+        for orphan in orphans[:5]:
+            parts += ["```", *orphan["error"].splitlines()[:20], "```"]
     return "\n".join(parts).strip() + "\n"
 
 

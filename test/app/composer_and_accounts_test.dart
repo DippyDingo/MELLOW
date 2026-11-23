@@ -43,11 +43,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Добавьте хотя бы одного получателя'), findsOneWidget);
 
-    // A valid address clears the error. The send itself needs a real mailbox,
-    // so it is covered by `send_controller_test.dart` against a fake adapter.
+    // A valid address clears the error without a rebuild of the whole form.
+    // Sending itself needs a real mailbox and is covered by
+    // `send_controller_test.dart`, which uses a recording adapter.
     await tester.enterText(find.byType(TextField).first, 'alex@example.com');
     await tester.pump();
-    // No error, and no fake "sent" claim either.
     expect(find.text('Добавьте хотя бы одного получателя'), findsNothing);
   });
 
