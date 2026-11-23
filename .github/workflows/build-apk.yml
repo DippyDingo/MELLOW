@@ -110,25 +110,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 tool/ci/collect_failures.py ci-failure.md
-
-          python3 - <<'PY'
-          import json, os, pathlib, urllib.request
-
-          body = pathlib.Path("ci-failure.md").read_text(encoding="utf-8")
-          data = json.dumps({"body": body[:60000]}).encode()
-          request = urllib.request.Request(
-              f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}"
-              f"/commits/{os.environ['GITHUB_SHA']}/comments",
-              data=data,
-              headers={
-                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
-                  "Accept": "application/vnd.github+json",
-                  "Content-Type": "application/json",
-              },
-          )
-          with urllib.request.urlopen(request) as response:
-              print("commit comment posted:", response.status)
-          PY
+          python3 tool/ci/post_comment.py ci-failure.md
 
   apk:
     name: Android APK
@@ -182,6 +164,7 @@ jobs:
         run: python3 tool/platform/prepare_android.py --scheme "${{ steps.scheme.outputs.value }}"
 
       - name: Build debug APK
+        id: build
         run: |
           set -euo pipefail
           short_sha="${GITHUB_SHA::7}"
@@ -193,7 +176,16 @@ jobs:
             defines+=("--dart-define=GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}")
             defines+=("--dart-define=GOOGLE_REDIRECT_URI=${{ steps.scheme.outputs.value }}:/oauth2redirect")
           fi
-          flutter build apk --debug "${defines[@]}"
+          set +e
+          flutter build apk --debug "${defines[@]}" 2>&1 | tee build.log
+          status=${PIPESTATUS[0]}
+          {
+            echo "### flutter build apk (exit ${status})"
+            echo '```'
+            tail -n 120 build.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "${status}"
 
       - name: Rename artifact
         run: |
@@ -210,11 +202,26 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # Same reason as in the check job: the build log may be unreachable, but
+      # the commit comment is not.
+      - name: Publish build failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MELLOW_BUILD_LOG: build.log
+        run: |
+          python3 tool/ci/collect_failures.py ci-failure.md
+          python3 tool/ci/post_comment.py ci-failure.md
+
   ios:
     name: iOS build (no codesign)
     needs: check
     runs-on: macos-latest
     timeout-minutes: 45
+    # Advisory: without an Apple Developer account the result cannot be put on
+    # a phone, and the macOS runner is much flakier than the Linux one. A red
+    # iOS job must not hide a green APK.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 

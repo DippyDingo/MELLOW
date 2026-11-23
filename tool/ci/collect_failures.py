@@ -55,9 +55,18 @@ def analyzer_section(text: str) -> list[str]:
     return out
 
 
+def build_log_section(text: str, limit: int = 120) -> list[str]:
+    """The tail of a compiler/CLI log: the error is at the end, not the start."""
+    if not text.strip():
+        return []
+    lines = [line for line in text.splitlines() if line.strip()]
+    return ["#### build log (tail)", "```", *lines[-limit:], "```"]
+
+
 def build_report(root: Path) -> str:
     analyze = _read(root / "analyze.log")
     test_json = root / "test.json"
+    build_log = _read(Path(os.environ.get("MELLOW_BUILD_LOG", "build.log")))
 
     parts = [
         f"### CI failure for {os.environ.get('GITHUB_SHA', 'unknown')[:7]}",
@@ -65,6 +74,7 @@ def build_report(root: Path) -> str:
     ]
     for section in (
         analyzer_section(analyze),
+        build_log_section(build_log),
         summarize_tests.render(
             summarize_tests.parse(test_json) if test_json.exists() else {
                 "tests": [], "failures": [], "success": None, "started": 0
