@@ -318,7 +318,19 @@ def write_java_plugin() -> list[str]:
 
 
 def patch_main_activity() -> list[str]:
-    """Registers the installer channel on the Flutter engine."""
+    """Registers the installer channel on the Flutter engine.
+
+    The generated activity is tiny and comes in two shapes, both produced by
+    real Flutter templates:
+
+        class MainActivity : FlutterActivity() {}      // braces, empty body
+        class MainActivity: FlutterActivity()          // no braces at all
+
+    The second shape is what Flutter 3.24 writes. Appending code after it puts
+    the override at file scope, and Kotlin then refuses to compile with
+    «Modifier 'override' is not applicable to 'top level function'». So the
+    declaration itself is rewritten into a class body with the override inside.
+    """
     if not MAIN_ACTIVITY.exists():
         return []
 
@@ -327,6 +339,7 @@ def patch_main_activity() -> list[str]:
         return []
 
     original = text
+
     imports = [
         "import app.mellow.ApkInstallerPlugin",
         "import io.flutter.embedding.engine.FlutterEngine",
@@ -334,14 +347,14 @@ def patch_main_activity() -> list[str]:
     ]
     for line in imports:
         if line not in text:
-            text = text.replace(
-                "import io.flutter.embedding.android.FlutterActivity",
-                "import io.flutter.embedding.android.FlutterActivity\n" + line,
-                1,
-            )
+            anchor = "import io.flutter.embedding.android.FlutterActivity"
+            if anchor in text:
+                text = text.replace(anchor, anchor + "\n" + line, 1)
+            else:
+                text = line + "\n" + text
 
     override = (
-        "\n    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {\n"
+        "\n\n    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {\n"
         "        super.configureFlutterEngine(flutterEngine)\n"
         "        MethodChannel(\n"
         "            flutterEngine.dartExecutor.binaryMessenger,\n"
@@ -349,31 +362,36 @@ def patch_main_activity() -> list[str]:
         "        ).setMethodCallHandler(ApkInstallerPlugin(this))\n"
         "    }\n"
     )
-    # The generated class body is empty: `class MainActivity : FlutterActivity()`
-    # followed by `}` or `{}`, and some templates put the brace on the next line.
-    # Inserting before the closing brace keeps the override inside the class,
-    # which a plain text append does not: Kotlin then reads it as a top-level
-    # function and the build dies with «Modifier 'override' is not applicable».
-    class_body = re.search(
-        r"class\s+MainActivity\s*:\s*FlutterActivity\(\s*\)\s*\{\s*\}?",
+
+    # 1. A class body already exists: put the override before its closing brace.
+    declared = re.search(r"class\s+MainActivity[^\n{]*\{", text)
+    if declared is not None:
+        close = text.rfind("}")
+        if close > declared.end():
+            text = text[:close] + override + text[close:]
+        else:
+            # `{` without a matching `}` cannot happen in valid Kotlin, but do
+            # not produce broken code if it somehow does.
+            text = text + override
+
+        if text != original:
+            MAIN_ACTIVITY.write_text(text, encoding="utf-8")
+            return ["MainActivity registers the installer channel"]
+        return []
+
+    # 2. The brace-less template: turn the declaration into a real class body.
+    brace_less = re.search(
+        r"class\s+MainActivity\s*:\s*FlutterActivity\(\s*\)",
         text,
     )
-    if class_body is not None:
-        end = class_body.end()
-        body = class_body.group(0)
-        # Drop the empty `{}` pair, then insert before the closing brace.
-        if body.rstrip().endswith("{}"):
-            cut = end - 1
-            text = text[:cut] + override + "}" + text[end:]
-        else:
-            close = text.rfind("}", 0, end) if "}" in body else -1
-            cut = close if close != -1 else end
-            text = text[:cut] + override + text[cut:]
-    else:
-        text = text + override
-
-    if text == original:
+    if brace_less is None:
         return []
+
+    declaration = "class MainActivity : FlutterActivity() {"
+    text = text[: brace_less.start()] + declaration + override + "}\n" + text[brace_less.end():]
+    # Whatever followed the old declaration (usually nothing but a newline).
+    text = re.sub(r"\n\s*\n}", "\n}", text)
+
     MAIN_ACTIVITY.write_text(text, encoding="utf-8")
     return ["MainActivity registers the installer channel"]
 
