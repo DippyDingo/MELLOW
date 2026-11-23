@@ -157,10 +157,14 @@ class MimeBuilder {
     return '<$trimmed>';
   }
 
+  /// Monotonic counter, because two messages built in the same microsecond
+  /// would otherwise receive the same `Message-ID` — and servers reject that.
+  static int _sequence = 0;
+
   static String _generateMessageId(DateTime when) {
     final random = when.microsecondsSinceEpoch.toRadixString(36);
-    final millis = when.millisecondsSinceEpoch.toRadixString(36);
-    return '<$random.$millis@$messageIdDomain>';
+    final seq = (_sequence++).toRadixString(36);
+    return '<$random.$seq@$messageIdDomain>';
   }
 
   /// Passes `Name <addr>` through untouched; bare addresses are used as-is.

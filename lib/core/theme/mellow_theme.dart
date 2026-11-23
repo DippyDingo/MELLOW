@@ -149,7 +149,9 @@ class MellowColors extends ThemeExtension<MellowColors> {
       danger: mix(danger, other.danger),
       warning: mix(warning, other.warning),
       success: mix(success, other.success),
-      isDark: t < 0.5 ? isDark : other.isDark,
+      // On the exact midpoint the source palette wins, so `lerp(…, 0.5)`
+      // never claims the opposite brightness of the palette it started from.
+      isDark: t <= 0.5 ? isDark : other.isDark,
     );
   }
 }

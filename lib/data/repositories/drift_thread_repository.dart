@@ -51,13 +51,9 @@ class DriftThreadRepository implements ThreadRepository {
     if (filter.contactId != null) {
       query.where((t) => t.contactId.equals(filter.contactId!));
     }
+    // The search term is applied in Dart below: SQLite's `lower()` folds ASCII
+    // only, so `lower(subject) LIKE '%докум%'` never matches Russian text.
     final term = filter.query?.trim().toLowerCase();
-    if (term != null && term.isNotEmpty) {
-      query.where(
-        (t) => t.subject.lower().contains(term) |
-            t.lastMessagePreview.lower().contains(term),
-      );
-    }
 
     query.orderBy([
       (t) => OrderingTerm(expression: t.isPinned, mode: OrderingMode.desc),
@@ -67,11 +63,25 @@ class DriftThreadRepository implements ThreadRepository {
     final rows = await query.get();
     if (rows.isEmpty) return const <MessageThread>[];
 
-    if (filter.favoritesOnly) return _filterFavorites(rows);
+    final List<MessageThread> threads;
+    if (filter.favoritesOnly) {
+      threads = await _filterFavorites(rows);
+    } else {
+      final participants =
+          await _participantsFor(rows.map((r) => r.id).toList());
+      threads = rows
+          .map((row) =>
+              MessageMapper.threadToEntity(row, participants[row.id] ?? const []))
+          .toList(growable: false);
+    }
 
-    final participants = await _participantsFor(rows.map((r) => r.id).toList());
-    return rows
-        .map((row) => MessageMapper.threadToEntity(row, participants[row.id] ?? const []))
+    if (term == null || term.isEmpty) return threads;
+    return threads
+        .where(
+          (thread) =>
+              thread.subject.toLowerCase().contains(term) ||
+              thread.lastMessagePreview.toLowerCase().contains(term),
+        )
         .toList(growable: false);
   }
 

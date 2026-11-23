@@ -42,8 +42,18 @@ class DriftContactRepository implements ContactRepository {
     final term = query.trim().toLowerCase();
     if (term.isEmpty) return getContacts();
 
-    final rows = await _joinedQuery(term: term).get();
-    return _groupJoinedRows(rows);
+    // Filtering happens in Dart, not in SQL: SQLite's `lower()` only folds
+    // ASCII, so names written in Cyrillic would never match a lowercase term.
+    final contacts = _groupJoinedRows(await _joinedQuery().get());
+    return contacts
+        .where(
+          (contact) =>
+              contact.displayName.toLowerCase().contains(term) ||
+              contact.addresses.any(
+                (address) => address.email.toLowerCase().contains(term),
+              ),
+        )
+        .toList(growable: false);
   }
 
   @override
@@ -176,7 +186,7 @@ class DriftContactRepository implements ContactRepository {
     });
   }
 
-  JoinedSelectStatement<HasResultSet, dynamic> _joinedQuery({String? term}) {
+  JoinedSelectStatement<HasResultSet, dynamic> _joinedQuery() {
     final query = _db.select(_db.contacts).join([
       leftOuterJoin(
         _db.contactEmails,
@@ -192,12 +202,6 @@ class DriftContactRepository implements ContactRepository {
         ),
       ]);
 
-    if (term != null) {
-      query.where(
-        _db.contacts.displayName.lower().contains(term) |
-            _db.contactEmails.email.lower().contains(term),
-      );
-    }
     return query;
   }
 

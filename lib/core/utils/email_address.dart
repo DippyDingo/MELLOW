@@ -154,5 +154,9 @@ String nameFromAddress(String email) {
   return words.isEmpty ? local : words.join(' ');
 }
 
-String _capitalize(String word) =>
-    word[0].toUpperCase() + word.substring(1).toLowerCase();
+/// Capitalises a plain word; tokens with digits (`a1`, `user99`) are kept as
+/// they are, because they are fragments of an address, not a name.
+String _capitalize(String word) {
+  if (RegExp(r'\d').hasMatch(word)) return word;
+  return word[0].toUpperCase() + word.substring(1).toLowerCase();
+}

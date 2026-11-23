@@ -128,10 +128,13 @@ jobs:
               | sort -u || echo "no test output"
             echo '```'
             echo
-            echo '#### failure details'
+            echo '#### failure details (60 lines before each failure)'
             echo '```'
-            grep -A 8 -E '^(The following .* was thrown|Expected:)' test.log 2>/dev/null \
-              | head -n 600 || echo "none"
+            awk '{buf[NR]=$0}
+                 /\[E\]$/ {s=NR-60; if (s<1) s=1; if (s<=last) s=last+1;
+                           for (i=s; i<=NR; i++) print buf[i];
+                           print "-----"; last=NR}' test.log 2>/dev/null \
+              | head -n 900 || echo "none"
             echo '```'
             echo
             echo '#### tail of the test log'
