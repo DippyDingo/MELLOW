@@ -226,12 +226,14 @@ jobs:
           notes="Сборка ${short_sha} из ветки ${GITHUB_REF_NAME}.
           Изменения: см. историю коммитов. Установка — docs/INSTALL.md."
 
+          # No --prerelease on purpose: GitHub marks such a release as "latest"
+          # only when it is a normal release, and the updater asks for the
+          # newest normal release by tag. A prerelease would need extra calls.
           gh release create "$tag" "$apk" \
             --repo "$GITHUB_REPOSITORY" \
             --title "Сборка ${short_sha}" \
             --notes "$notes" \
-            --target "$GITHUB_SHA" \
-            --prerelease
+            --target "$GITHUB_SHA"
 
       # Same reason as in the check job: the build log may be unreachable, but
       # the commit comment is not.

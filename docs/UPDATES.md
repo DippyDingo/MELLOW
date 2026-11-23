@@ -43,8 +43,16 @@ Android ставит новую версию поверх, ничего не п�
 GitHub **Releases** того же репозитория, что и сборка:
 
 ```
-GET https://api.github.com/repos/{owner}/{repo}/releases/latest
+GET https://api.github.com/repos/{owner}/{repo}/releases?per_page=10
 ```
+
+> **Почему не `/releases/latest`:** этот эндпоинт отдаёт 404, если последний
+> релиз помечен как pre-release или черновик. Именно так и случилось при первой
+> публикации: CI создавал `--prerelease`, и `/releases/latest` отвечал 404,
+> хотя APK был на месте. Поэтому: (1) CI публикует обычный релиз, (2)
+> приложение всё равно читает **список** `/releases` и само выбирает первый
+> подходящий — так одна ошибка в настройке релиза не отключает обновления
+> целиком.
 
 Ответ используется так:
 
@@ -54,7 +62,7 @@ GET https://api.github.com/repos/{owner}/{repo}/releases/latest
 | `name` | Человеческое имя: «Сборка 22f11d4» |
 | `body` | Список изменений (Markdown), показываем как текст |
 | `published_at` | Дата сборки, показываем «собрано 23 ноября» |
-| `prerelease` | `true` → **игнорируем** такую сборку |
+| `prerelease` | не фильтруем: если сборка помечена pre-release, она всё равно годится |
 | `draft` | `true` → игнорируем |
 | `assets[]` | Ищем файл `mellow-*-debug.apk`: `browser_download_url`, `size` |
 
