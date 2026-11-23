@@ -24,6 +24,7 @@ class AppSettings {
     this.updateCheckEnabled = true,
     this.updateOnMobileData = true,
     this.updateNotificationsEnabled = true,
+    this.lastUpdateCheckAt,
   });
 
   final ThemePreference themePreference;
@@ -49,6 +50,9 @@ class AppSettings {
   /// Show a system notification when a new build is found.
   final bool updateNotificationsEnabled;
 
+  /// When the app last asked GitHub, so checks stay at most every six hours.
+  final DateTime? lastUpdateCheckAt;
+
   AppSettings copyWith({
     ThemePreference? themePreference,
     bool? focusModeEnabled,
@@ -63,6 +67,7 @@ class AppSettings {
     bool? updateCheckEnabled,
     bool? updateOnMobileData,
     bool? updateNotificationsEnabled,
+    DateTime? lastUpdateCheckAt,
   }) {
     return AppSettings(
       themePreference: themePreference ?? this.themePreference,
@@ -80,6 +85,7 @@ class AppSettings {
       updateOnMobileData: updateOnMobileData ?? this.updateOnMobileData,
       updateNotificationsEnabled:
           updateNotificationsEnabled ?? this.updateNotificationsEnabled,
+      lastUpdateCheckAt: lastUpdateCheckAt ?? this.lastUpdateCheckAt,
     );
   }
 
@@ -101,7 +107,8 @@ class AppSettings {
           other.appLockEnabled == appLockEnabled &&
           other.updateCheckEnabled == updateCheckEnabled &&
           other.updateOnMobileData == updateOnMobileData &&
-          other.updateNotificationsEnabled == updateNotificationsEnabled;
+          other.updateNotificationsEnabled == updateNotificationsEnabled &&
+          other.lastUpdateCheckAt == lastUpdateCheckAt;
 
   @override
   int get hashCode => Object.hash(
@@ -118,6 +125,7 @@ class AppSettings {
         updateCheckEnabled,
         updateOnMobileData,
         updateNotificationsEnabled,
+        lastUpdateCheckAt,
       );
 }
 

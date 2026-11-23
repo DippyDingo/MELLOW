@@ -96,6 +96,9 @@ class SettingsController extends AsyncNotifier<AppSettings> {
   Future<void> setUpdateNotificationsEnabled(bool enabled) =>
       _update((s) => s.copyWith(updateNotificationsEnabled: enabled));
 
+  Future<void> markUpdateChecked(DateTime at) =>
+      _update((s) => s.copyWith(lastUpdateCheckAt: at));
+
   Future<void> reset() async {
     await _repository.reset();
     final defaults = await _repository.getSettings();
