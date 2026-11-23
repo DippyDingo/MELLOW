@@ -253,7 +253,9 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
             controller: _toController,
             readOnly: _isReply && _toController.text.trim().isNotEmpty,
             keyboardType: TextInputType.emailAddress,
-            onChanged: (_) => setState(() {}),
+            // An error shown for the previous value is stale as soon as the
+            // user edits the field: keep it only until the next keystroke.
+            onChanged: (_) => setState(() => _recipientError = null),
             decoration: InputDecoration(
               labelText: 'Кому',
               hintText: 'name@example.com',
