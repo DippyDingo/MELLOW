@@ -443,6 +443,27 @@ void main() {
       expect(bySubject.single.id, 't1');
     });
 
+    test('search matches a participant name', () async {
+      await seedAccount();
+      await threads.saveThread(
+        MessageThread(
+          id: 't1',
+          accountId: 'a1',
+          subject: 'Планы',
+          participants: const <EmailAddress>[
+            EmailAddress(address: 'maria.sokolova@mail.ru'),
+          ],
+          updatedAt: DateTime(2026, 11, 23, 10),
+        ),
+      );
+
+      // A conversation is found by the person, not only by its subject: the
+      // field promises "имя, тема или текст" (spec 2.7).
+      final byAddress =
+          await threads.getThreads(const ThreadFilter(query: 'сокол'));
+      expect(byAddress.single.id, 't1');
+    });
+
     test('unread count aggregates across threads', () async {
       await seedAccount();
       await makeThread(id: 't1');

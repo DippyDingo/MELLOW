@@ -77,11 +77,19 @@ class DriftThreadRepository implements ThreadRepository {
     }
 
     if (term == null || term.isEmpty) return threads;
+    // The search field promises name, subject and text (spec 2.7), so all
+    // three are matched here. Names come from the participants, which are
+    // already resolved above — no extra query is needed.
     return threads
         .where(
           (thread) =>
               thread.subject.toLowerCase().contains(term) ||
-              thread.lastMessagePreview.toLowerCase().contains(term),
+              thread.lastMessagePreview.toLowerCase().contains(term) ||
+              thread.participants.any(
+                (participant) =>
+                    participant.address.toLowerCase().contains(term) ||
+                    (participant.displayName ?? '').toLowerCase().contains(term),
+              ),
         )
         .toList(growable: false);
   }
