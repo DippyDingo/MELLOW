@@ -59,17 +59,13 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
   Widget build(BuildContext context) {
     final account = ref.watch(primaryAccountProvider);
     final tokens = MellowColors.of(context);
-    final hasContent = _toController.text.trim().isNotEmpty ||
-        _subjectController.text.trim().isNotEmpty ||
-        _bodyController.text.trim().isNotEmpty;
-
     return MellowScaffold(
       padding: false,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close),
           tooltip: 'Закрыть',
-          onPressed: () => _confirmDiscard(context, hasContent),
+          onPressed: () => _confirmDiscard(context),
         ),
         title: widget.threadId == null ? const Text('Новое сообщение') : const Text('Ответ'),
         actions: <Widget>[
@@ -182,8 +178,16 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
     );
   }
 
-  Future<void> _confirmDiscard(BuildContext context, bool hasContent) async {
-    if (!hasContent) {
+  /// True when the user typed anything that is not saved anywhere yet.
+  bool get _hasContent =>
+      _toController.text.trim().isNotEmpty ||
+      _subjectController.text.trim().isNotEmpty ||
+      _bodyController.text.trim().isNotEmpty;
+
+  Future<void> _confirmDiscard(BuildContext context) async {
+    // Read the controllers at press time: a frame built before the last
+    // keystroke would otherwise decide there is nothing to lose.
+    if (!_hasContent) {
       if (context.mounted) Navigator.of(context).pop();
       return;
     }

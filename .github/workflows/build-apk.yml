@@ -80,17 +80,15 @@ jobs:
       - name: Architecture rules
         run: bash tool/check_structure.sh
 
+      # The JSON reporter is the only reliable source of *which* assertion
+      # failed: the expanded reporter interleaves printers and test output, so a
+      # failure message can end up hundreds of lines away from its test.
       - name: Tests
         run: |
           set +e
-          flutter test --reporter expanded 2>&1 | tee test.log
+          flutter test --reporter json 2>&1 | tee test.json
           status=${PIPESTATUS[0]}
-          {
-            echo "### flutter test (exit ${status})"
-            echo '```'
-            tail -n 300 test.log
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          python3 tool/ci/summarize_tests.py test.json >> "$GITHUB_STEP_SUMMARY"
           exit "${status}"
 
       - name: Upload logs
@@ -100,7 +98,7 @@ jobs:
           name: ci-logs
           path: |
             analyze.log
-            test.log
+            test.json
           if-no-files-found: ignore
 
       # Artifacts and job logs live on a blob host that some networks cannot
@@ -111,37 +109,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euo pipefail
-          {
-            echo "### CI failure for ${GITHUB_SHA:0:7}"
-            echo
-            echo '#### flutter analyze'
-            echo '```'
-            tail -n 120 analyze.log 2>/dev/null || echo "no analyze output"
-            echo '```'
-            echo
-            echo '#### failing tests'
-            echo '```'
-            grep -E '\[E\]$' test.log 2>/dev/null \
-              | sed -E 's/^[0-9:]+ \+[0-9]+ -[0-9]+: //' \
-              | sed -E 's#^.*/MELLOW/##' \
-              | sort -u || echo "no test output"
-            echo '```'
-            echo
-            echo '#### failure details (60 lines before each failure)'
-            echo '```'
-            awk '{buf[NR]=$0}
-                 /\[E\]$/ {s=NR-60; if (s<1) s=1; if (s<=last) s=last+1;
-                           for (i=s; i<=NR; i++) print buf[i];
-                           print "-----"; last=NR}' test.log 2>/dev/null \
-              | head -n 900 || echo "none"
-            echo '```'
-            echo
-            echo '#### tail of the test log'
-            echo '```'
-            tail -n 60 test.log 2>/dev/null || echo "no test output"
-            echo '```'
-          } > ci-failure.md
+          python3 tool/ci/collect_failures.py ci-failure.md
 
           python3 - <<'PY'
           import json, os, pathlib, urllib.request

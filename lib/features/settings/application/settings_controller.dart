@@ -26,7 +26,10 @@ class SettingsController extends AsyncNotifier<AppSettings> {
   /// If the write fails the previous value is restored and the error is
   /// rethrown, so the UI never claims a setting was saved when it was not.
   Future<void> _update(AppSettings Function(AppSettings current) transform) async {
-    final previous = state.valueOrNull ?? AppSettings.defaults;
+    // Wait for the first load. A write issued while `build` is still running
+    // would start from the defaults and could revert a change made a moment
+    // earlier — the second write would win with stale content.
+    final previous = await future;
     final next = transform(previous);
     if (next == previous) return;
     state = AsyncData(next);
