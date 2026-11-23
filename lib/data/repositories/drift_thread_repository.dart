@@ -64,17 +64,9 @@ class DriftThreadRepository implements ThreadRepository {
     final rows = await query.get();
     if (rows.isEmpty) return const <MessageThread>[];
 
-    final List<MessageThread> threads;
-    if (filter.favoritesOnly) {
-      threads = await _filterFavorites(rows);
-    } else {
-      final participants =
-          await _participantsFor(rows.map((r) => r.id).toList());
-      threads = rows
-          .map((row) =>
-              MessageMapper.threadToEntity(row, participants[row.id] ?? const []))
-          .toList(growable: false);
-    }
+    final List<MessageThread> threads = filter.favoritesOnly
+        ? await _filterFavorites(rows)
+        : await _toThreads(rows);
 
     if (term == null || term.isEmpty) return threads;
     // The search field promises name, subject and text (spec 2.7), so all
@@ -105,11 +97,7 @@ class DriftThreadRepository implements ThreadRepository {
     final ids = favoriteContacts.map((c) => c.id).toSet();
     final favorites = rows.where((row) => ids.contains(row.contactId)).toList();
     if (favorites.isEmpty) return const <MessageThread>[];
-    final participants =
-        await _participantsFor(favorites.map((r) => r.id).toList());
-    return favorites
-        .map((row) => MessageMapper.threadToEntity(row, participants[row.id] ?? const []))
-        .toList(growable: false);
+    return _toThreads(favorites);
   }
 
   @override
@@ -117,8 +105,8 @@ class DriftThreadRepository implements ThreadRepository {
     final row = await (_db.select(_db.conversations)..where((t) => t.id.equals(id)))
         .getSingleOrNull();
     if (row == null) return null;
-    final participants = await _participantsFor(<String>[id]);
-    return MessageMapper.threadToEntity(row, participants[id] ?? const []);
+    final threads = await _toThreads(<ConversationRow>[row]);
+    return threads.isEmpty ? null : threads.single;
   }
 
   @override
@@ -440,6 +428,57 @@ class DriftThreadRepository implements ThreadRepository {
     return query.watchSingle().map(
           (row) => row.read<int>('total'),
         );
+  }
+
+  /// Turns conversation rows into entities, resolving participant names.
+  ///
+  /// One extra query for the contacts of all visible threads: without it a
+  /// conversation knows only addresses, and "поиск по имени" has no name to
+  /// match.
+  Future<List<MessageThread>> _toThreads(List<ConversationRow> rows) async {
+    if (rows.isEmpty) return const <MessageThread>[];
+
+    final participants =
+        await _participantsFor(rows.map((row) => row.id).toList());
+    final names = await _displayNamesOf(<String>{
+      for (final list in participants.values)
+        for (final participant in list) participant.email,
+    });
+
+    return rows
+        .map(
+          (row) => MessageMapper.threadToEntity(
+            row,
+            participants[row.id] ?? const <ParticipantRow>[],
+            displayNames: names,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  /// Address (lower-case) -> contact display name, for the given addresses.
+  Future<Map<String, String>> _displayNamesOf(Set<String> addresses) async {
+    if (addresses.isEmpty) return const <String, String>{};
+    final normalized = addresses.map((address) => address.toLowerCase()).toSet();
+
+    final rows = await (_db.select(_db.contactEmails)
+          ..where((t) => t.email.isIn(normalized)))
+        .get();
+    if (rows.isEmpty) return const <String, String>{};
+
+    final contactIds = rows.map((row) => row.contactId).toSet();
+    final contacts = await (_db.select(_db.contacts)
+          ..where((t) => t.id.isIn(contactIds)))
+        .get();
+
+    final nameOf = <String, String>{
+      for (final contact in contacts)
+        if (contact.displayName.trim().isNotEmpty) contact.id: contact.displayName,
+    };
+    return <String, String>{
+      for (final row in rows)
+        if (nameOf[row.contactId] != null) row.email: nameOf[row.contactId]!,
+    };
   }
 
   Future<Map<String, List<ParticipantRow>>> _participantsFor(
