@@ -201,7 +201,7 @@ class _InstallBlock extends StatelessWidget {
   }
 
   Future<void> _install(BuildContext context) async {
-    final _OpenFile? opener = _opener;
+    final Future<void> Function(String path)? opener = _opener;
     final String? path = state.filePath;
     if (path == null) return;
 

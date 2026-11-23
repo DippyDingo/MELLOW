@@ -42,14 +42,14 @@ class _ChunkedClient extends http.BaseClient {
     requests.add(request.url);
     final StreamController<List<int>> controller =
         StreamController<List<int>>();
-    Future<void>(() async {
+    unawaited(Future<void>(() async {
       for (int i = 0; i < body.length; i += chunkSize) {
         final int end = (i + chunkSize).clamp(0, body.length);
         controller.add(body.sublist(i, end));
         await Future<void>.delayed(Duration.zero);
       }
       await controller.close();
-    });
+    }));
     return http.StreamedResponse(controller.stream, status);
   }
 }
