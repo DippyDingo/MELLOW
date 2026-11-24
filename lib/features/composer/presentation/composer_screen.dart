@@ -126,9 +126,9 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
   @override
   void dispose() {
     _autosaveTimer?.cancel();
-    // The last keystrokes are the ones easiest to lose: fire the pending save
-    // now instead of waiting for a timer that will never run.
-    if (!_finished) unawaited(_flushDraft());
+    // No save here on purpose: reading a provider while the widget is being
+    // unmounted is not allowed. The pending save is flushed by [PopScope]
+    // before the screen goes away, and every keystroke already scheduled one.
     _toController.dispose();
     _ccController.dispose();
     _subjectController.dispose();
@@ -213,7 +213,10 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
   /// the next keystroke tries again.
   Future<void> _flushDraft() async {
     if (_finished) return;
+    // Captured before any await: the screen may be gone by the time the write
+    // finishes, and reaching into `ref` after that is a crash waiting to happen.
     final account = ref.read(primaryAccountProvider);
+    final store = ref.read(draftStoreProvider);
     if (account == null) return;
     final hasContent = _toController.text.trim().isNotEmpty ||
         _subjectController.text.trim().isNotEmpty ||
@@ -221,7 +224,7 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
     if (!hasContent && _draftId == null) return;
 
     try {
-      final saved = await ref.read(draftStoreProvider).save(
+      final saved = await store.save(
             account: account,
             to: _addressesOf(_toController.text),
             cc: _showCc ? _addressesOf(_ccController.text) : const <String>[],
@@ -319,132 +322,138 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
 
     final canSend = account != null && !sendState.isSending;
 
-    return MellowScaffold(
-      padding: false,
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          tooltip: 'Закрыть',
-          onPressed: () => _confirmDiscard(context),
-        ),
-        title: Text(_isReply ? 'Ответ' : 'Новое сообщение'),
-        actions: <Widget>[
-          IconButton(
-            tooltip: 'Вложения',
-            icon: const Icon(Icons.attach_file),
-            onPressed: () => _notImplemented(
-              context,
-              'Прикреплять файлы Mellow пока не умеет. Это в работе.',
-            ),
+    return PopScope<void>(
+      // The system back gesture must not outrun the last keystroke either.
+      onPopInvokedWithResult: (bool didPop, void _) {
+        if (didPop && !_finished) unawaited(_flushDraft());
+      },
+      child: MellowScaffold(
+        padding: false,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: 'Закрыть',
+            onPressed: () => _confirmDiscard(context),
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: MellowSpacing.md),
-            child: IconButton.filled(
-              tooltip: account == null
-                  ? 'Сначала подключите аккаунт'
-                  : 'Отправить',
-              onPressed: canSend ? _send : null,
-              icon: sendState.isSending
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.send_outlined),
+          title: Text(_isReply ? 'Ответ' : 'Новое сообщение'),
+          actions: <Widget>[
+            IconButton(
+              tooltip: 'Вложения',
+              icon: const Icon(Icons.attach_file),
+              onPressed: () => _notImplemented(
+                context,
+                'Прикреплять файлы Mellow пока не умеет. Это в работе.',
+              ),
             ),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          MellowSpacing.lg,
-          MellowSpacing.sm,
-          MellowSpacing.lg,
-          MellowSpacing.xxl,
-        ),
-        children: <Widget>[
-          _AccountChip(account: account),
-          if (sendState.error != null) ...<Widget>[
-            const SizedBox(height: MellowSpacing.md),
-            _ErrorNotice(
-              message: sendState.error!,
-              onRetry: canSend ? _send : null,
+            Padding(
+              padding: const EdgeInsets.only(right: MellowSpacing.md),
+              child: IconButton.filled(
+                tooltip: account == null
+                    ? 'Сначала подключите аккаунт'
+                    : 'Отправить',
+                onPressed: canSend ? _send : null,
+                icon: sendState.isSending
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send_outlined),
+              ),
             ),
           ],
-          const SizedBox(height: MellowSpacing.md),
-          TextField(
-            controller: _toController,
-            readOnly: _isReply && _toController.text.trim().isNotEmpty,
-            keyboardType: TextInputType.emailAddress,
-            // An error shown for the previous value is stale as soon as the
-            // user edits the field: keep it only until the next keystroke.
-            onChanged: (_) {
-              setState(() => _recipientError = null);
-              _onEdited();
-            },
-            decoration: InputDecoration(
-              labelText: 'Кому',
-              hintText: 'name@example.com',
-              errorText: _recipientError,
-              suffixIcon: _showCc
-                  ? null
-                  : TextButton(
-                      onPressed: () => setState(() => _showCc = true),
-                      child: const Text('Копия'),
-                    ),
-            ),
+        ),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(
+            MellowSpacing.lg,
+            MellowSpacing.sm,
+            MellowSpacing.lg,
+            MellowSpacing.xxl,
           ),
-          if (_showCc) ...<Widget>[
-            const SizedBox(height: MellowSpacing.md),
-            TextField(
-              controller: _ccController,
-              keyboardType: TextInputType.emailAddress,
-              onChanged: (_) => _onEdited(),
-              decoration: const InputDecoration(labelText: 'Копия'),
-            ),
-          ],
-          const SizedBox(height: MellowSpacing.md),
-          TextField(
-            controller: _subjectController,
-            onChanged: (_) => _onEdited(),
-            textCapitalization: TextCapitalization.sentences,
-            decoration: InputDecoration(
-              labelText: 'Тема',
-              hintText: _isReply ? 'Re: …' : 'Сформируется автоматически',
-            ),
-          ),
-          const SizedBox(height: MellowSpacing.lg),
-          TextField(
-            controller: _bodyController,
-            minLines: 8,
-            maxLines: null,
-            autofocus: !_isReply,
-            keyboardType: TextInputType.multiline,
-            textCapitalization: TextCapitalization.sentences,
-            onChanged: (_) => _onEdited(),
-            decoration: const InputDecoration(
-              hintText: 'Напишите сообщение…',
-              border: InputBorder.none,
-              filled: false,
-            ),
-          ),
-          const SizedBox(height: MellowSpacing.lg),
-          Row(
-            children: <Widget>[
-              Icon(Icons.lock_outline, size: 14, color: tokens.onSurfaceMuted),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  _footerNote(account),
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelSmall
-                      ?.copyWith(color: tokens.onSurfaceMuted),
-                ),
+          children: <Widget>[
+            _AccountChip(account: account),
+            if (sendState.error != null) ...<Widget>[
+              const SizedBox(height: MellowSpacing.md),
+              _ErrorNotice(
+                message: sendState.error!,
+                onRetry: canSend ? _send : null,
               ),
             ],
-          ),
-        ],
+            const SizedBox(height: MellowSpacing.md),
+            TextField(
+              controller: _toController,
+              readOnly: _isReply && _toController.text.trim().isNotEmpty,
+              keyboardType: TextInputType.emailAddress,
+              // An error shown for the previous value is stale as soon as the
+              // user edits the field: keep it only until the next keystroke.
+              onChanged: (_) {
+                setState(() => _recipientError = null);
+                _onEdited();
+              },
+              decoration: InputDecoration(
+                labelText: 'Кому',
+                hintText: 'name@example.com',
+                errorText: _recipientError,
+                suffixIcon: _showCc
+                    ? null
+                    : TextButton(
+                        onPressed: () => setState(() => _showCc = true),
+                        child: const Text('Копия'),
+                      ),
+              ),
+            ),
+            if (_showCc) ...<Widget>[
+              const SizedBox(height: MellowSpacing.md),
+              TextField(
+                controller: _ccController,
+                keyboardType: TextInputType.emailAddress,
+                onChanged: (_) => _onEdited(),
+                decoration: const InputDecoration(labelText: 'Копия'),
+              ),
+            ],
+            const SizedBox(height: MellowSpacing.md),
+            TextField(
+              controller: _subjectController,
+              onChanged: (_) => _onEdited(),
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                labelText: 'Тема',
+                hintText: _isReply ? 'Re: …' : 'Сформируется автоматически',
+              ),
+            ),
+            const SizedBox(height: MellowSpacing.lg),
+            TextField(
+              controller: _bodyController,
+              minLines: 8,
+              maxLines: null,
+              autofocus: !_isReply,
+              keyboardType: TextInputType.multiline,
+              textCapitalization: TextCapitalization.sentences,
+              onChanged: (_) => _onEdited(),
+              decoration: const InputDecoration(
+                hintText: 'Напишите сообщение…',
+                border: InputBorder.none,
+                filled: false,
+              ),
+            ),
+            const SizedBox(height: MellowSpacing.lg),
+            Row(
+              children: <Widget>[
+                Icon(Icons.lock_outline, size: 14, color: tokens.onSurfaceMuted),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _footerNote(account),
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelSmall
+                        ?.copyWith(color: tokens.onSurfaceMuted),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
