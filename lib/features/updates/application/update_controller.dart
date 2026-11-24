@@ -135,8 +135,10 @@ class UpdateController extends Notifier<UpdateState> {
     } on Exception {
       return;
     }
-    final AppSettings settings = ref.read(settingsControllerProvider).valueOrNull ??
-        ref.read(appSettingsProvider);
+    // `current` prefers the value this session last wrote, so a switch flipped
+    // a moment ago is honoured even before the database stream echoes it back.
+    final AppSettings settings =
+        ref.read(settingsControllerProvider.notifier).current;
     if (!settings.updateCheckEnabled) {
       state = const UpdateState(phase: UpdatePhase.idle);
       return;

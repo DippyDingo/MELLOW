@@ -63,6 +63,15 @@ class SettingsController extends AsyncNotifier<AppSettings> {
     }
   }
 
+  /// The newest settings this app knows, synchronously.
+  ///
+  /// The stream behind [state] can lag one write behind while a save is in
+  /// flight, so a caller that acts right after a change (the update check runs
+  /// on resume, right after the user flips a switch) must read [_lastWritten]
+  /// first or it will act on the previous value.
+  AppSettings get current =>
+      _lastWritten ?? state.valueOrNull ?? AppSettings.defaults;
+
   Future<void> setThemePreference(ThemePreference preference) =>
       _update((s) => s.copyWith(themePreference: preference));
 
