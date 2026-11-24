@@ -120,7 +120,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      GOOGLE_CLIENT_ID: ${{ github.event.inputs.google_client_id }}
+      # A repository *variable* keeps the OAuth client id for every build, so a
+      # manual run does not have to paste it each time. The id is public by
+      # nature (it travels in the browser URL); the client *secret* never
+      # appears here at all - the mobile flow uses PKCE and a public client.
+      GOOGLE_CLIENT_ID: ${{ inputs.google_client_id || vars.GOOGLE_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
 

@@ -27,6 +27,7 @@ class GmailConnectScreen extends ConsumerStatefulWidget {
 
 class _GmailConnectScreenState extends ConsumerState<GmailConnectScreen> {
   final TextEditingController _redirectController = TextEditingController();
+  String? _manualError;
 
   /// Listens for `com.googleusercontent.apps...:/oauth2redirect?code=...`.
   final AppLinks _appLinks = AppLinks();
@@ -94,14 +95,55 @@ class _GmailConnectScreenState extends ConsumerState<GmailConnectScreen> {
     }
   }
 
-  /// Fills the field from the clipboard: the browser copies the redirect URL
+  /// Fills the field from the clipboard: the browser can copy the redirect URL
   /// when the user long-presses the address bar, which is the shortest manual
-  /// path until an app-link handler is wired up.
+  /// path while the automatic return is not working.
   Future<void> _pasteFromClipboard() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text?.trim() ?? '';
     if (text.isEmpty) return;
     _redirectController.text = text;
+  }
+
+  /// Pulls the code out of whatever the user pasted.
+  ///
+  /// People paste the whole address, a truncated one, or only the code; the
+  /// flow only needs `code`. Returns null when nothing usable is there, so the
+  /// screen can say so instead of silently doing nothing.
+  String? _codeFrom(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) return null;
+    final uri = Uri.tryParse(text);
+    final fromUri = uri?.queryParameters['code'];
+    if (fromUri != null && fromUri.isNotEmpty) return fromUri;
+    // A bare code (no URL at all) is accepted: Google codes are long and start
+    // with `4/`.
+    if (!text.contains('://') && !text.contains(' ')) return text;
+    return null;
+  }
+
+  /// Sends the pasted answer into the flow, or explains why it cannot.
+  Future<void> _submitManual() async {
+    final raw = _redirectController.text;
+    final code = _codeFrom(raw);
+    if (code == null) {
+      setState(() {
+        _manualError =
+            'В этой строке нет кода авторизации. Скопируйте адрес из адресной '
+            'строки браузера целиком — в нём есть «code=…».';
+      });
+      return;
+    }
+    setState(() => _manualError = null);
+    await ref.read(gmailConnectControllerProvider.notifier).complete(raw.trim());
+  }
+
+  /// Opens the browser again with the same consent link.
+  Future<void> _openBrowser() async {
+    final Uri? uri =
+        ref.read(gmailConnectControllerProvider).authorizationUri;
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   @override
@@ -153,9 +195,8 @@ class _GmailConnectScreenState extends ConsumerState<GmailConnectScreen> {
                 border: Border.all(color: tokens.warning.withOpacity(0.35)),
               ),
               child: Text(
-                'Эта сборка собрана без GOOGLE_CLIENT_ID, поэтому вход в Gmail '
-                'не сможет открыть согласие Google. Всё остальное приложение '
-                '(интерфейс, темы, локальные данные) работает.',
+                'В этой сборке нет доступа к Google, поэтому подключить ящик '
+                'нельзя. Это ограничение сборки, а не ошибка ваших действий.',
                 style: theme.bodySmall?.copyWith(color: tokens.warning),
               ),
             ),
@@ -175,19 +216,57 @@ class _GmailConnectScreenState extends ConsumerState<GmailConnectScreen> {
               ),
             ),
           const SizedBox(height: MellowSpacing.xl),
-          if (state.step == GmailConnectStep.awaitingConsent ||
-              state.step == GmailConnectStep.failed) ...<Widget>[
+          if (!_isGmailConfigured) ...<Widget>[
             Text(
-              'Если браузер не вернулся в приложение автоматически, вставьте '
-              'адрес из адресной строки сюда:',
+              'Что делать сейчас',
+              style: theme.titleMedium,
+            ),
+            const SizedBox(height: MellowSpacing.sm),
+            const Text(
+              'Вводить ничего не нужно. В этой сборке нет доступа к Google — '
+              'подключение ящика включится, когда сборка получит его.',
+            ),
+          ] else if (state.step == GmailConnectStep.awaitingConsent ||
+              state.step == GmailConnectStep.failed) ...<Widget>[
+            Text('Что делать сейчас', style: theme.titleMedium),
+            const SizedBox(height: MellowSpacing.sm),
+            const _NumberedStep(
+              number: 1,
+              text: 'В открывшемся браузере выберите аккаунт Gmail и нажмите '
+                  '«Разрешить». Пароль Mellow не увидит.',
+            ),
+            const _NumberedStep(
+              number: 2,
+              text: 'После согласия Google вернёт вас в Mellow сам. Если '
+                  'вернул в браузер — скопируйте адрес из адресной строки '
+                  'целиком (долгое нажатие → «Копировать»).',
+            ),
+            const _NumberedStep(
+              number: 3,
+              text: 'Вернитесь сюда: вставьте адрес в поле ниже и нажмите '
+                  '«Продолжить». Обычно шаг 2 срабатывает сам, и поле ниже не '
+                  'нужно.',
+            ),
+            const SizedBox(height: MellowSpacing.md),
+            OutlinedButton.icon(
+              onPressed: _openBrowser,
+              icon: const Icon(Icons.open_in_browser, size: 18),
+              label: const Text('Открыть браузер ещё раз'),
+            ),
+            const SizedBox(height: MellowSpacing.lg),
+            Text(
+              'Если приложение не вернулось само',
               style: theme.bodySmall?.copyWith(color: tokens.onSurfaceMuted),
             ),
             const SizedBox(height: MellowSpacing.sm),
             TextField(
               controller: _redirectController,
               autocorrect: false,
+              minLines: 1,
+              maxLines: 3,
               decoration: InputDecoration(
-                hintText: 'com.googleusercontent.apps...:/oauth2redirect?code=…',
+                hintText: 'Вставьте адрес из браузера',
+                errorText: _manualError,
                 suffixIcon: IconButton(
                   tooltip: 'Вставить из буфера',
                   icon: const Icon(Icons.content_paste, size: 18),
@@ -197,26 +276,11 @@ class _GmailConnectScreenState extends ConsumerState<GmailConnectScreen> {
             ),
             const SizedBox(height: MellowSpacing.sm),
             FilledButton(
-              onPressed: () {
-                final raw = _redirectController.text.trim();
-                if (raw.isEmpty) return;
-                ref
-                    .read(gmailConnectControllerProvider.notifier)
-                    .complete(raw);
-              },
-              child: const Text('Завершить подключение'),
-            ),
-            const SizedBox(height: MellowSpacing.lg),
-            OutlinedButton.icon(
-              onPressed: () => launchUrl(
-                state.authorizationUri ??
-                    Uri.parse('https://accounts.google.com'),
-                mode: LaunchMode.externalApplication,
-              ),
-              icon: const Icon(Icons.open_in_browser, size: 18),
-              label: const Text('Открыть браузер снова'),
+              onPressed: _submitManual,
+              child: const Text('Продолжить'),
             ),
           ],
+
           if (state.step == GmailConnectStep.done) ...<Widget>[
             FilledButton(
               onPressed: () => context.go(AppRoutes.conversations),
@@ -276,6 +340,47 @@ class _StepRow extends StatelessWidget {
                   ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One line of the «what to do now» instructions.
+///
+/// Numbered because the flow crosses two apps (Mellow and the browser) and
+/// people lose track of where they are; plain prose did not survive the trip.
+class _NumberedStep extends StatelessWidget {
+  const _NumberedStep({required this.number, required this.text});
+
+  final int number;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final MellowColors tokens = MellowColors.of(context);
+    final TextTheme theme = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: MellowSpacing.md),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            width: 22,
+            height: 22,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: tokens.accentContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              '$number',
+              style: theme.labelSmall?.copyWith(color: tokens.accent),
+            ),
+          ),
+          const SizedBox(width: MellowSpacing.sm),
+          Expanded(child: Text(text, style: theme.bodySmall)),
         ],
       ),
     );
