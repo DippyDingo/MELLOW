@@ -336,6 +336,10 @@ class DriftThreadRepository implements ThreadRepository {
   @override
   Future<Message> upsertMessage(Message message) async {
     return _db.transaction(() async {
+      // The conversation must exist before the message does (foreign key), and
+      // the caller may legitimately not have created it yet — a fresh draft is
+      // saved before anything else knows about its conversation.
+      await _ensureConversationFor(message);
       var existing = await _findExisting(message);
       if (existing != null) {
         final id = existing.id;
@@ -355,6 +359,30 @@ class DriftThreadRepository implements ThreadRepository {
       await _refreshThreadCounters(message.threadId);
       return (await getMessage(message.id)) ?? message;
     });
+  }
+
+  /// Creates the conversation row for [message] when it is missing.
+  ///
+  /// Deliberately minimal: subject, account and timestamp come from the message
+  /// itself. Participants are resolved by the sync engine and by the composer
+  /// when the message is really stored, so this only has to satisfy the
+  /// foreign key and make the card appear.
+  Future<void> _ensureConversationFor(Message message) async {
+    final exists = await (_db.selectOnly(_db.conversations)
+          ..addColumns(<Expression<Object>>[_db.conversations.id])
+          ..where(_db.conversations.id.equals(message.threadId)))
+        .getSingleOrNull();
+    if (exists != null) return;
+    await _db.into(_db.conversations).insert(
+          ConversationsCompanion.insert(
+            id: message.threadId,
+            accountId: message.accountId,
+            subject: Value(message.subject),
+            updatedAt: Value(message.sentAt),
+            lastMessagePreview: Value(message.preview),
+            isPinned: const Value(false),
+          ),
+        );
   }
 
   /// Finds a stored copy of [message] by provider id, then by RFC Message-ID.
