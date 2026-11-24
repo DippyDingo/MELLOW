@@ -50,7 +50,12 @@ mkdir -p "$out_dir"
 # is not trivial, so ask python when it is available, else fall back to a hash
 # of the whole file (stable and comparable, just not the X.509 fingerprint).
 cert_fingerprint() {
-  if python3 - "$key_store" "$password" "$alias_name" <<'PY' 2>/dev/null
+  if [ -f "$fingerprint_file" ]; then
+    # Written by the python generator: a real X.509 fingerprint.
+    awk '{print $2}' "$fingerprint_file"
+    return 0
+  fi
+  if "${MELLOW_PYTHON:-python3}" - "$key_store" "$password" "$alias_name" <<'PY' 2>/dev/null
 import sys
 import jks
 from cryptography import x509
@@ -73,18 +78,14 @@ PY
   fi
   if command -v openssl >/dev/null; then
     # Not the X.509 fingerprint, but a stable identity for the file.
-    echo "file-sha256 $(openssl dgst -sha256 "$key_store" | awk '{print $2}')"
+    openssl dgst -sha256 "$key_store" | awk '{print "file:" $2}'
     return 0
   fi
   echo "unknown"
 }
 
 if [ "$fingerprint_only" -eq 1 ]; then
-  if [ -f "$fingerprint_file" ]; then
-    cat "$fingerprint_file"
-  else
-    echo "SHA-256 $(cert_fingerprint)"
-  fi
+  echo "SHA-256 $(cert_fingerprint)"
   exit 0
 fi
 
@@ -121,7 +122,9 @@ else
 fi
 
 cert_sha="$(cert_fingerprint)"
-printf 'SHA-256 %s\n' "$cert_sha" > "$fingerprint_file"
+if [ ! -f "$fingerprint_file" ]; then
+  printf 'SHA-256 %s\n' "$cert_sha" > "$fingerprint_file"
+fi
 
 echo "▸ certificate fingerprint:"
 echo "  SHA-256 ${cert_sha}"
