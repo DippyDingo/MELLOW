@@ -1,0 +1,70 @@
+name: iOS compile check
+
+# Separate from the APK workflow on purpose.
+#
+# The macOS runner is slow and occasionally stalled: a job that never picks up
+# its steps delays the whole run, and when it eventually gets cancelled the run
+# turns red even though the APK was built and published. The APK is the only
+# thing that reaches a phone today, so it must not wait on a Mac.
+#
+# This workflow is advisory: without an Apple Developer account the build
+# cannot be signed or installed, it only catches an iOS compile error early.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - arena/ef9ea789-mellow
+    paths:
+      - "lib/**"
+      - "test/**"
+      - "pubspec.yaml"
+      - "tool/**"
+      - ".github/workflows/ios-build.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "lib/**"
+      - "pubspec.yaml"
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: "3.24.5"
+
+jobs:
+  ios:
+    name: iOS build (no codesign)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Dependencies
+        run: flutter pub get
+
+      - name: Generate Drift code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Generate iOS project
+        run: |
+          set -euo pipefail
+          flutter create --platforms=ios --org app.mellow \
+            --project-name mellow "$RUNNER_TEMP/platform-ios"
+          cp -r "$RUNNER_TEMP/platform-ios/ios" ./ios
+
+      # Without an Apple Developer account the app cannot be signed or installed
+      # on a phone; this job exists so an iOS compile error is caught here
+      # rather than on a Mac later.
+      - name: Compile (no codesign)
+        run: flutter build ios --no-codesign --debug
