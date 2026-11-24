@@ -127,6 +127,10 @@ Actions → **Build installable APK** → **Run workflow** → ветка
   а `flutter_deeplinking_enabled=false` не даёт `go_router` перехватить ссылку.
 * Токены лежат в Keystore/Keychain через `flutter_secure_storage`, никогда не
   пишутся в логи и не попадают в базу.
+* PKCE-секрет на время согласия хранится там же (`gmail.pending_flow`):
+  Android вправе убить Mellow, пока открыт браузер, и без этого возврат из
+  браузера приводил бы к экрану, который уже не помнит запрос. Возврат
+  читается и из `getInitialLink()` (холодный старт), и из потока ссылок.
 * Client id передаётся в сборку через `--dart-define`, поэтому его нет в
   репозитории; `AppConfig.fromEnvironment` читает его при компиляции.
 * Пока приложение в режиме Testing, Google ограничивает вход списком Test
