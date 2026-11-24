@@ -221,13 +221,31 @@ sha из тега релиза:
 | одинаковый ключ подписи | иначе Android откажет «приложение не установлено» |
 | `versionCode` не меньше предыдущего | откат версии Android не примет |
 
-CI подписывает debug-сборки стандартным debug-ключом **раннера**; ключ
-элементарен, но он должен быть стабильным. Поэтому вместо ключа из
-`~/.android/debug.keystore` раннера используется ключ, сохранённый в секретах
-репозитория (`MELLOW_KEYSTORE_BASE64`, `MELLOW_KEYSTORE_PASSWORD`), иначе
-сборки с разных раннеров окажутся подписаны разными ключами. Пока секретов
-нет — используется стандартный debug-ключ, а установка «поверх» может
-потребовать удаления приложения; это состояние честно описано в `INSTALL.md`.
+CI подписывает debug-сборки стандартным debug-ключом **раннера**, а раннер —
+это чистая машина: её ключ новый каждый раз, и тогда сборки не встают друг
+поверх друга.
+
+Поэтому ключ один и живёт в секрете репозитория `MELLOW_DEBUG_KEYSTORE_B64`
+(base64 от PKCS#8 DER, 2048-bit RSA). Шаг «Restore the stable debug signing
+key» в `.github/workflows/build-apk.yml` записывает его в
+`~/.android/debug.keystore` до сборки — именно туда смотрит Android Gradle
+плагин, поэтому Gradle не правится и лишние инструменты не нужны.
+
+Создать и сохранить ключ (владелец репозитория, один раз):
+
+```bash
+tool/platform/make_signing_key.sh --set-secret
+```
+
+Скрипт печатает SHA-256 отпечаток ключа. **Он должен быть одинаковым у всех
+сборок** — иначе обновление не установится поверх. Файл `*.pem` рядом с ключом
+надо сохранить: потеря ключа означает, что пользователю придётся удалить
+приложение, а локальная почта при этом исчезнет.
+
+Пока секрета нет, сборка **всё равно проходит**, но подписывается ключом
+раннера; в релизных заметках это написано прямо («debug-ключ раннера»), а в
+логе сборки висит предупреждение. Так честнее, чем молча выпускать сборку,
+которую нельзя поставить поверх.
 
 ### 7.3. Если установка не удалась
 
@@ -333,12 +351,27 @@ CI подписывает debug-сборки стандартным debug-клю
 | `lib/core/utils/update_check.dart` | Поиск релиза, сравнение сборок, разбор ответа GitHub |
 | `lib/features/updates/application/update_controller.dart` | Состояние: проверка, загрузка, прогресс, ошибки, «отложено» |
 | `lib/features/updates/data/update_downloader.dart` | Потоковая загрузка APK, проверка размера и заголовка zip |
-| `lib/features/updates/presentation/update_banner.dart` | Плашка в списке диалогов |
-| `lib/features/updates/presentation/update_sheet.dart` | «Что нового», «Скачать», прогресс, «Установить» |
+| `lib/core/widgets/update_banner.dart` | Плашка. Лежит в `core/widgets`, потому что её показывают две фичи: «Диалоги» и «О приложении» (AGENTS.md §3) |
+| `lib/core/widgets/update_sheet.dart` | «Что нового», «Скачать», прогресс, «Установить» |
+| `lib/providers/installer/apk_installer.dart` | Передача APK системному установщику через канал `app.mellow/apk_installer` |
 | `lib/features/settings/presentation/about_screen.dart` | Кнопка проверки и состояние |
 | `lib/features/settings/…` | Новые настройки обновлений |
 | `.github/workflows/build-apk.yml` | Публикация релиза с APK после успешной сборки |
-| `tool/platform/prepare_android.py` | `REQUEST_INSTALL_PACKAGES`, FileProvider |
+| `tool/platform/prepare_android.py` | `REQUEST_INSTALL_PACKAGES`, `FileProvider` (authority `app.mellow.updates`), `res/xml/update_paths.xml`, `ApkInstallerPlugin.java` и его регистрация в `MainActivity` |
+
+### 13.1. Почему установка не через сторонний плагин
+
+Обычный путь — `open_filex`. От него пришлось отказаться:
+
+* свежие версии требуют Dart 3.11+/Flutter 3.35, а сборка идёт на 3.24.5;
+* старые собраны под Gradle-плагин Flutter 3.29+ — ровно та поломка, что уже
+  была с `app_links 6.4.1` и стоила нескольких проваленных сборок;
+* проверить версию заранее нельзя, не сломав сборку.
+
+Свой канал из ~90 строк Java делает то же самое и виден в репозитории:
+`FileProvider` → `content://` URI → `Intent.ACTION_VIEW`.
+`open_filex` не объявляет `REQUEST_INSTALL_PACKAGES` (политика Play), так что
+разрешение всё равно пришлось бы добавлять самим.
 
 ---
 

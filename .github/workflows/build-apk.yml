@@ -165,6 +165,28 @@ jobs:
       - name: Patch Android manifest
         run: python3 tool/platform/prepare_android.py --scheme "${{ steps.scheme.outputs.value }}"
 
+      # The update flow installs a new build over the old one, and Android only
+      # allows that when both are signed with the same key. Runners are fresh
+      # machines, so their default debug key differs every run and the install
+      # would fail with «Приложение не установлено». The key therefore comes
+      # from the repository secrets and is written where the Android Gradle
+      # plugin already looks for it — no Gradle edits, no extra tools.
+      - name: Restore the stable debug signing key
+        id: signing
+        env:
+          KEYSTORE_B64: ${{ secrets.MELLOW_DEBUG_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_B64}" ]; then
+            echo "::warning title=Signing key missing::MELLOW_DEBUG_KEYSTORE_B64 is not set, so this APK is signed with the runner's own debug key. Installing it over an earlier build may fail; see docs/UPDATES.md."
+            echo "key=runner" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p "$HOME/.android"
+          printf '%s' "${KEYSTORE_B64}" | base64 -d > "$HOME/.android/debug.keystore"
+          echo "key=stable" >> "$GITHUB_OUTPUT"
+          echo "Using the repository signing key"
+
       - name: Build debug APK
         id: build
         run: |
@@ -227,7 +249,8 @@ jobs:
           fi
 
           notes="Сборка ${short_sha} из ветки ${GITHUB_REF_NAME}.
-          Изменения: см. историю коммитов. Установка — docs/INSTALL.md."
+          Изменения: см. историю коммитов. Установка — docs/INSTALL.md.
+          Подпись: ${{ steps.signing.outputs.key == 'stable' && 'постоянный ключ Mellow' || 'debug-ключ раннера (может не встать поверх)' }}."
 
           # No --prerelease on purpose: a prerelease makes /releases/latest
           # answer 404, and that is exactly how the channel broke the first
