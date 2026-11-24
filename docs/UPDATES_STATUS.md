@@ -263,6 +263,9 @@ GET /repos/DippyDingo/MELLOW/releases?per_page=10
 tool/platform/make_signing_key.sh --set-secret
 ```
 
+Пошагово, включая способ без терминала (просто через сайт GitHub) —
+[`SIGNING_KEY.md`](SIGNING_KEY.md).
+
 Нужен `openssl` и `gh`, авторизованный в вашем репозитории. Скрипт создаёт
 ключ, печатает его отпечаток и кладёт в секрет `MELLOW_DEBUG_KEYSTORE_B64`.
 Сохраните `debug.keystore.pem` в надёжном месте: без него новый ключ сделать

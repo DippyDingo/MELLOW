@@ -11,6 +11,11 @@
 #
 #   tool/platform/make_signing_key.sh                 # write the key locally
 #   tool/platform/make_signing_key.sh --set-secret    # and store it in GitHub
+#   tool/platform/make_signing_key.sh --print-base64  # print it for the web UI
+#
+# `--print-base64` exists for people without a terminal: it writes the key files
+# and prints one long line, which is pasted into the GitHub settings page
+# (Settings → Secrets and variables → Actions → New repository secret).
 #
 # The key is a Debug signing key: 2048-bit RSA, PKCS#8 DER, SHA-256 with the
 # JDK's default alias and password (`androiddebugkey` / `android`). That is
@@ -20,9 +25,11 @@ set -euo pipefail
 
 set_secret=0
 fingerprint_only=0
+print_base64=0
 for arg in "$@"; do
   case "$arg" in
     --set-secret) set_secret=1 ;;
+    --print-base64) print_base64=1 ;;
     --fingerprint) fingerprint_only=1 ;;
     -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
@@ -56,6 +63,18 @@ echo "▸ fingerprint:"
 openssl dgst -sha256 "$key_der" | awk '{print "  SHA-256 " $2}'
 echo "  Every build must report the same fingerprint, or updates cannot install"
 echo "  over each other."
+
+if [ "$print_base64" -eq 1 ]; then
+  echo
+  echo "▸ MELLOW_DEBUG_KEYSTORE_B64 — paste this whole line as the secret value:"
+  echo
+  base64 < "$key_der" | tr -d '\n'
+  echo
+  echo
+  echo "▸ Name the secret exactly MELLOW_DEBUG_KEYSTORE_B64"
+  echo "  Settings → Secrets and variables → Actions → New repository secret"
+  exit 0
+fi
 
 if [ "$set_secret" -eq 1 ]; then
   command -v gh >/dev/null || { echo "gh is required for --set-secret" >&2; exit 1; }
