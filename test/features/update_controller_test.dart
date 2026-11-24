@@ -44,6 +44,12 @@ void main() {
 
       await controller().check(automatic: false);
 
+      // Diagnostic: what the controller actually saw.
+      // ignore: avoid_print
+      print('DIAG live=${container.read(settingsControllerProvider).valueOrNull?.updateCheckEnabled} '
+          'sync=${container.read(appSettingsProvider).updateCheckEnabled} '
+          'phase=${state().phase} msg=${state().message}');
+
       // No state change at all: the banner must not appear and no request is
       // made, which is what the acceptance criterion in §11 asks for.
       expect(state().phase, UpdatePhase.idle);
