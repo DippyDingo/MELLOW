@@ -226,10 +226,16 @@ CI подписывает debug-сборки стандартным debug-клю
 поверх друга.
 
 Поэтому ключ один и живёт в секрете репозитория `MELLOW_DEBUG_KEYSTORE_B64`
-(base64 от PKCS#8 DER, 2048-bit RSA). Шаг «Restore the stable debug signing
-key» в `.github/workflows/build-apk.yml` записывает его в
-`~/.android/debug.keystore` до сборки — именно туда смотрит Android Gradle
-плагин, поэтому Gradle не правится и лишние инструменты не нужны.
+(base64 от JKS-файла: алиас `androiddebugkey`, store/key пароль `android`,
+2048-bit RSA). Шаг «Restore the stable debug signing key» в
+`.github/workflows/build-apk.yml` записывает его в `~/.android/debug.keystore`
+до сборки — именно туда смотрит Android Gradle плагин, поэтому Gradle не
+правится.
+
+Важно про формат: **PKCS#8 DER не подходит**, это не keystore. Gradle молча
+игнорирует такой файл и подписывает сборку ключом раннера. Поэтому шаг CI
+сначала проверяет файл через `keytool -list` и падает с понятной ошибкой,
+если алиас не читается.
 
 Создать и сохранить ключ (владелец репозитория, один раз):
 

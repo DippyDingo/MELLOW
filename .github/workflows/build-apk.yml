@@ -184,10 +184,24 @@ jobs:
           fi
           mkdir -p "$HOME/.android"
           printf '%s' "${KEYSTORE_B64}" | base64 -d > "$HOME/.android/debug.keystore"
-          # Fingerprint of the key that will sign this build. Compare it with
-          # the previous build: different values mean an update cannot install.
-          fingerprint="SHA-256 $(openssl dgst -sha256 \
-            "$HOME/.android/debug.keystore" | awk '{print $2}')"
+
+          # Verify before building: AGP silently falls back to the runner key if
+          # this file is not a readable keystore, and the failure only shows up
+          # as "cannot install over the previous build" days later.
+          if ! keytool -list -keystore "$HOME/.android/debug.keystore" \
+              -storepass android -alias androiddebugkey >/dev/null 2>&1; then
+            echo "::error title=Bad keystore::MELLOW_DEBUG_KEYSTORE_B64 is not a \
+          readable JKS with alias androiddebugkey. Regenerate it with \
+          tool/platform/make_signing_key.sh --print-base64."
+            exit 1
+          fi
+
+          # Fingerprint of the certificate inside the keystore: two builds with
+          # different values cannot install over each other.
+          fingerprint="SHA-256 $(keytool -list -v \
+            -keystore "$HOME/.android/debug.keystore" -storepass android \
+            -alias androiddebugkey 2>/dev/null \
+            | awk -F': ' '/SHA256:/{gsub(/:/,"",$2); print tolower($2); exit}')"
           echo "key=stable" >> "$GITHUB_OUTPUT"
           echo "Using the repository signing key"
           if [ -n "${fingerprint}" ]; then

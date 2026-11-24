@@ -25,8 +25,12 @@ tool/platform/make_signing_key.sh --print-base64
 ```
 
 Скрипт создаст `build/signing/debug.keystore` и `debug.keystore.pem`, а в
-ответ напечатает одну длинную строку — она начинается с `MIIE…`. Её и нужно
-скопировать целиком.
+ответ напечатает одну длинную строку — она начинается с `/u3+…` или `MIIE…`.
+Её и нужно скопировать целиком.
+
+Что именно попадает в секрет: **файл keystore целиком** (JKS с алиасом
+`androiddebugkey` и паролем `android`), закодированный в base64. Не «ключ в
+чистом виде» и не пароль — только этот файл.
 
 **Вариант Б — терминала нет совсем.** Тогда попросите меня: напишите в чат
 «сделай ключ и пришли строку». Я выполню скрипт здесь и пришлю строку в ответ.
@@ -49,7 +53,7 @@ tool/platform/make_signing_key.sh --print-base64
 | Поле | Что вписать |
 | --- | --- |
 | **Name** | `MELLOW_DEBUG_KEYSTORE_B64` — ровно так, без пробелов |
-| **Secret** | длинная строка из шага 1 (`MIIE…`), целиком, одной строкой |
+| **Secret** | длинная строка из шага 1 (`/u3+…` или `MIIE…`), целиком, одной строкой |
 
 Нажмите **Add secret**. GitHub покажет секрет в списке — значение после
 сохранения больше не отображается, это нормально.
@@ -82,7 +86,19 @@ tool/platform/make_signing_key.sh --set-secret
 Дальше — шаг 4 выше.
 
 На Windows запускайте из **Git Bash** (не из cmd/PowerShell): скрипт написан
-на bash и использует `openssl`.
+на bash.
+
+Нужен либо JDK (тогда используется `keytool` — самый надёжный путь), либо
+python с `pyjks`:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install pyjks pycryptodomex cryptography
+MELLOW_PYTHON=.venv/bin/python tool/platform/make_signing_key.sh --print-base64
+```
+
+Что скрипт **не** делает: он не пишет «просто ключ». Android нужен контейнер
+keystore с алиасом — файл в формате PKCS#8 Gradle молча игнорирует и
+подписывает сборку ключом раннера, а внешне всё выглядит успешно.
 
 ---
 
@@ -123,7 +139,7 @@ tool/platform/make_signing_key.sh --fingerprint
 2. github.com/DippyDingo/MELLOW/settings/secrets/actions
 3. New repository secret
    Name:   MELLOW_DEBUG_KEYSTORE_B64
-   Secret: MIIE…  (вся строка)
+   Secret: /u3+…  (вся строка keystore в base64)
 4. Actions → Build installable APK → Run workflow
 5. В Summary: «Signing key SHA-256 …», в релизе: «постоянный ключ Mellow»
 ```
