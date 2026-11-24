@@ -29,6 +29,10 @@ class _GmailConnectScreenState extends ConsumerState<GmailConnectScreen> {
   final TextEditingController _redirectController = TextEditingController();
   String? _manualError;
 
+  /// True when the redirect arrived with the launch itself, so the browser
+  /// must not be opened again on top of it.
+  bool _answeredFromColdStart = false;
+
   /// Listens for `com.googleusercontent.apps...:/oauth2redirect?code=...`.
   final AppLinks _appLinks = AppLinks();
   StreamSubscription<Uri>? _linkSubscription;
@@ -36,14 +40,70 @@ class _GmailConnectScreenState extends ConsumerState<GmailConnectScreen> {
   @override
   void initState() {
     super.initState();
-    // Subscribe before the browser opens: a cold start delivers the redirect
-    // through this stream, and missing it would strand the user on this screen.
+    // Subscribe before the browser opens: a warm redirect arrives through this
+    // stream, and missing it would strand the user on this screen.
     _linkSubscription = _appLinks.uriLinkStream.listen(
       _onRedirect,
       onError: (Object _) {},
     );
     // Kick the flow after the first frame so the progress UI is visible.
     WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+  }
+
+  /// Decides what this screen should do when it opens.
+  ///
+  /// Three cases matter, and they are easy to confuse:
+  /// * the OS launched Mellow *because* the browser came back — the answer is
+  ///   in `getInitialLink()`, and the flow must be finished, not restarted;
+  /// * Mellow was killed while the consent screen was open — the PKCE secret is
+  ///   restored from the keystore, then the same redirect is applied;
+  /// * nothing pending — open the browser as usual.
+  Future<void> _start() async {
+    await _handleColdStartLink();
+
+    final controller = ref.read(gmailConnectControllerProvider.notifier);
+    final restored = await controller.restorePending();
+    if (!mounted) return;
+    // The redirect was the launch: the flow is already finishing, and opening
+    // the browser again would throw the answer away.
+    if (_answeredFromColdStart) return;
+
+    // Reuse the consent link of a restored flow instead of minting a new one:
+    // the PKCE secret in the keystore only matches the original request.
+    if (!restored) await controller.start(widget.email);
+
+    final uri = ref.read(gmailConnectControllerProvider).authorizationUri;
+    if (uri == null) return;
+
+    // Open the system browser: Google blocks OAuth in embedded webviews.
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не удалось открыть браузер')),
+      );
+    }
+  }
+
+  /// Applies a redirect that launched the app, before anything else runs.
+  Future<void> _handleColdStartLink() async {
+    if (!_isGmailConfigured) return;
+    try {
+      final Uri? initial = await _appLinks.getInitialLink();
+      if (initial == null) return;
+      final isAnswer = initial.queryParameters.containsKey('code') ||
+          initial.queryParameters.containsKey('error');
+      if (!isAnswer) return;
+      // The PKCE secret must be back in memory before the code is redeemed.
+      await ref.read(gmailConnectControllerProvider.notifier).restorePending();
+      if (!mounted) return;
+      _answeredFromColdStart = true;
+      await ref
+          .read(gmailConnectControllerProvider.notifier)
+          .complete(initial.toString());
+    } catch (_) {
+      // A malformed initial link is treated as «no link»: the normal path below
+      // still lets the user start the flow again.
+    }
   }
 
   @override
@@ -77,22 +137,6 @@ class _GmailConnectScreenState extends ConsumerState<GmailConnectScreen> {
     }
 
     ref.read(gmailConnectControllerProvider.notifier).complete(uri.toString());
-  }
-
-  Future<void> _start() async {
-    final controller = ref.read(gmailConnectControllerProvider.notifier);
-    await controller.start(widget.email);
-
-    final uri = ref.read(gmailConnectControllerProvider).authorizationUri;
-    if (uri == null) return;
-
-    // Open the system browser: Google blocks OAuth in embedded webviews.
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Не удалось открыть браузер')),
-      );
-    }
   }
 
   /// Fills the field from the clipboard: the browser can copy the redirect URL

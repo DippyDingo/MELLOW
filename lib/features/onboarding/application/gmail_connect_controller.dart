@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mellow/app/di/providers.dart';
 import 'package:mellow/core/config/app_config.dart';
@@ -84,6 +87,14 @@ class GmailConnectController extends StateNotifier<GmailConnectState> {
   String? _codeVerifier;
   String? _pendingAccountId;
 
+  /// Key for the PKCE secret that survives the browser trip.
+  ///
+  /// Android may kill Mellow while the consent screen is open (the browser is
+  /// a heavy foreground app). Keeping the verifier and the requested address in
+  /// the keystore means the redirect can still be finished afterwards instead
+  /// of dead-ending on «Поток авторизации не был начат».
+  static const String _flowKey = 'gmail.pending_flow';
+
   AppConfig get _config => AppConfig.fromEnvironment;
 
   bool get isConfigured => _config.isGoogleConfigured;
@@ -130,6 +141,93 @@ class GmailConnectController extends StateNotifier<GmailConnectState> {
       message: 'Подтвердите доступ в браузере',
     );
 
+    await _saveFlow(
+      accountId: accountId,
+      state: request.state,
+      verifier: request.codeVerifier,
+      email: parsed.address,
+      authorizationUri: request.authorizationUri.toString(),
+    );
+  }
+
+  /// Writes the in-flight consent flow to the keystore.
+  ///
+  /// Best effort: a device with a broken keystore must still be able to try,
+  /// just without surviving being killed by the system.
+  Future<void> _saveFlow({
+    required String accountId,
+    required String state,
+    required String verifier,
+    required String email,
+    required String authorizationUri,
+  }) async {
+    try {
+      await _ref.read(secureTokenStorageProvider).write(
+            _flowKey,
+            jsonEncode(<String, String>{
+              'accountId': accountId,
+              'state': state,
+              'verifier': verifier,
+              'email': email,
+              'authorizationUri': authorizationUri,
+            }),
+          );
+    } on AppException {
+      // Nothing to show: the flow still works while the app stays alive.
+    }
+  }
+
+  Future<void> _clearFlow() async {
+    try {
+      await _ref.read(secureTokenStorageProvider).delete(_flowKey);
+    } on AppException {
+      // A stale record is replaced by the next `start()` anyway.
+    }
+  }
+
+  /// Restores a flow interrupted by the app being killed.
+  ///
+  /// Returns true when there was something to restore, so the screen knows a
+  /// redirect can still be completed without opening the browser again.
+  Future<bool> restorePending() async {
+    if (_codeVerifier != null) return true;
+    try {
+      final raw = await _ref.read(secureTokenStorageProvider).read(_flowKey);
+      if (raw == null || raw.isEmpty) return false;
+      final data = jsonDecode(raw);
+      if (data is! Map) return false;
+
+      final accountId = data['accountId'];
+      final state = data['state'];
+      final verifier = data['verifier'];
+      final email = data['email'];
+      if (accountId is! String ||
+          state is! String ||
+          verifier is! String ||
+          email is! String) {
+        return false;
+      }
+
+      final authUri = Uri.tryParse('${data['authorizationUri']}');
+      _pendingAccountId = accountId;
+      _expectedState = state;
+      _codeVerifier = verifier;
+      _provider = GmailMailProvider(
+        config: _config,
+        tokenStorage: _ref.read(secureTokenStorageProvider),
+        accountId: accountId,
+      );
+      this.state = GmailConnectState(
+        step: GmailConnectStep.awaitingConsent,
+        authorizationUri: authUri,
+        accountEmail: email,
+        message: 'Подтвердите доступ в браузере',
+      );
+      return true;
+    } catch (_) {
+      // A corrupted record is not worth an error screen: start over instead.
+      return false;
+    }
   }
 
   /// Called with the redirect URI the browser came back with.
@@ -217,6 +315,11 @@ class GmailConnectController extends StateNotifier<GmailConnectState> {
       // sockets and watchers from leaking after a failed handshake.
       await provider.disconnect();
       _provider = null;
+      // The code can only be redeemed once, so the stored flow is spent whether
+      // the exchange succeeded or not.
+      _codeVerifier = null;
+      _expectedState = null;
+      await _clearFlow();
     }
   }
 
@@ -234,6 +337,7 @@ class GmailConnectController extends StateNotifier<GmailConnectState> {
     _codeVerifier = null;
     _pendingAccountId = null;
     state = const GmailConnectState();
+    unawaited(_clearFlow());
   }
 }
 
