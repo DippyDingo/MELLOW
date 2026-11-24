@@ -19,9 +19,11 @@
 set -euo pipefail
 
 set_secret=0
+fingerprint_only=0
 for arg in "$@"; do
   case "$arg" in
     --set-secret) set_secret=1 ;;
+    --fingerprint) fingerprint_only=1 ;;
     -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
@@ -33,6 +35,13 @@ out_dir="${MELLOW_KEY_DIR:-$PWD/build/signing}"
 mkdir -p "$out_dir"
 key_der="$out_dir/debug.keystore"
 key_pem="$out_dir/debug.keystore.pem"
+
+if [ "$fingerprint_only" -eq 1 ]; then
+  # Prints one line, `SHA-256 <hex>`, so CI can compare builds without
+  # reading the key itself.
+  openssl dgst -sha256 "$key_der" | awk '{print "SHA-256 " $2}'
+  exit 0
+fi
 
 if [ -f "$key_der" ]; then
   echo "▸ keeping the existing key at $key_der"

@@ -184,8 +184,22 @@ jobs:
           fi
           mkdir -p "$HOME/.android"
           printf '%s' "${KEYSTORE_B64}" | base64 -d > "$HOME/.android/debug.keystore"
+          # Fingerprint of the key that will sign this build. Compare it with
+          # the previous build: different values mean an update cannot install.
+          fingerprint="SHA-256 $(openssl dgst -sha256 \
+            "$HOME/.android/debug.keystore" | awk '{print $2}')"
           echo "key=stable" >> "$GITHUB_OUTPUT"
           echo "Using the repository signing key"
+          if [ -n "${fingerprint}" ]; then
+            echo "::notice title=Signing key::${fingerprint}"
+            {
+              echo "### Signing key"
+              echo '```'
+              echo "${fingerprint}"
+              echo '```'
+              echo "Two builds with different fingerprints cannot install over each other."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Build debug APK
         id: build
