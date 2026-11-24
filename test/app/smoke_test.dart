@@ -92,9 +92,11 @@ void main() {
     await tester.enterText(find.byType(TextField).first, 'мария');
     await tester.pumpAndSettle();
 
-    // Search is subject/preview based in sprint 01, so contact names are not
-    // matched; the empty result is honest rather than silently wrong.
+    // The field promises "по имени, теме или тексту", so a contact name has to
+    // work too — this is where it used to silently return nothing.
+    expect(find.text('Мария Соколова'), findsOneWidget);
     expect(find.text('Александр Петров'), findsNothing);
+    expect(find.text('Иван Кузнецов'), findsNothing);
   });
 
   testWidgets('dark theme renders without overflow on a small screen',

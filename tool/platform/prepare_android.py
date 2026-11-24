@@ -12,6 +12,16 @@ is generated, not committed):
   * an intent filter for the OAuth redirect scheme, and
     `flutter_deeplinking_enabled=false` so go_router does not swallow the link.
   * `<queries>` for the browser, required by url_launcher on Android 11+.
+  * `REQUEST_INSTALL_PACKAGES` — needed from Android 8 to hand a downloaded APK
+    to the system installer. The app is distributed outside Play, so the
+    permission is legitimate here.
+  * a `FileProvider` with authority `app.mellow.updates` plus
+    `res/xml/update_paths.xml` — Android refuses a `file://` URI, so the APK has
+    to travel to the installer as a content URI.
+  * `ApkInstallerPlugin.java`, the Java side of the `app.mellow/apk_installer`
+    channel, registered from `MainActivity`. Written here instead of pulling a
+    third-party plugin: a plugin's Gradle requirements can be incompatible with
+    this Flutter version, and one broken dependency takes the APK build down.
 
 Run from the repository root after `flutter create`:
 
@@ -28,6 +38,140 @@ import re
 import sys
 
 MANIFEST = pathlib.Path("android/app/src/main/AndroidManifest.xml")
+MAIN_ACTIVITY = pathlib.Path(
+    "android/app/src/main/kotlin/app/mellow/mellow/MainActivity.kt"
+)
+JAVA_PLUGIN = pathlib.Path(
+    "android/app/src/main/java/app/mellow/ApkInstallerPlugin.java"
+)
+UPDATE_PATHS = pathlib.Path("android/app/src/main/res/xml/update_paths.xml")
+
+# FileProvider authority; the Dart side names the same value in `ApkInstaller`.
+FILE_PROVIDER_AUTHORITY = "app.mellow.updates"
+
+PROVIDER_LINES = [
+    "        <!-- Update APKs reach the installer as content:// URIs:",
+    "             Android rejects file:// with FileUriExposedException. -->",
+    "        <provider",
+    '            android:name="androidx.core.content.FileProvider"',
+    f'            android:authorities="{FILE_PROVIDER_AUTHORITY}"',
+    '            android:exported="false"',
+    '            android:grantUriPermissions="true">',
+    "            <meta-data",
+    '                android:name="android.support.FILE_PROVIDER_PATHS"',
+    '                android:resource="@xml/update_paths" />',
+    "        </provider>",
+    "",
+]
+
+UPDATE_PATHS_XML = """<?xml version="1.0" encoding="utf-8"?>
+<!-- Paths the update FileProvider may share. Only the app's own cache is
+     exposed: the installer has to read the APK and nothing else. -->
+<paths>
+    <cache-path name="updates" path="updates/" />
+    <external-cache-path name="external_updates" path="updates/" />
+</paths>
+"""
+
+JAVA_SOURCE = """package app.mellow;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+import android.provider.Settings;
+
+import androidx.core.content.FileProvider;
+
+import java.io.File;
+
+import io.flutter.plugin.common.MethodCall;
+import io.flutter.plugin.common.MethodChannel;
+
+/**
+ * Java side of the {@code app.mellow/apk_installer} channel.
+ *
+ * <p>Registered from {@code MainActivity}, because it needs the current
+ * activity: the channel is not a Flutter plugin, so it does not need a plugin
+ * registration entry or a dependency of its own.
+ *
+ * <p>It cannot install anything silently. Android always shows its own
+ * confirmation screen, and from Android 8 the user must first allow this app to
+ * install unknown apps - that is the {@code permissionRequired} answer the Dart
+ * side turns into a readable hint with a button to the right settings screen.
+ */
+public final class ApkInstallerPlugin implements MethodChannel.MethodCallHandler {
+
+    public static final String CHANNEL = "app.mellow/apk_installer";
+
+    private final Activity activity;
+
+    public ApkInstallerPlugin(Activity activity) {
+        this.activity = activity;
+    }
+
+    @Override
+    public void onMethodCall(MethodCall call, MethodChannel.Result result) {
+        if ("installApk".equals(call.method)) {
+            installApk(
+                    (String) call.argument("path"),
+                    (String) call.argument("authority"),
+                    result);
+        } else if ("openInstallSettings".equals(call.method)) {
+            openInstallSettings(result);
+        } else {
+            result.notImplemented();
+        }
+    }
+
+    private void installApk(String path, String authority, MethodChannel.Result result) {
+        if (path == null || authority == null) {
+            result.success("missingFile");
+            return;
+        }
+        File file = new File(path);
+        if (!file.exists()) {
+            result.success("missingFile");
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                && !activity.getPackageManager().canRequestPackageInstalls()) {
+            result.success("permissionRequired");
+            return;
+        }
+        try {
+            Uri uri = FileProvider.getUriForFile(activity, authority, file);
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(uri, "application/vnd.android.package-archive");
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            activity.startActivity(intent);
+            result.success("opened");
+        } catch (Exception error) {
+            result.success("failed");
+        }
+    }
+
+    private void openInstallSettings(MethodChannel.Result result) {
+        try {
+            Intent intent;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                intent = new Intent(
+                        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:" + activity.getPackageName()));
+            } else {
+                intent = new Intent(Settings.ACTION_SECURITY_SETTINGS);
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            activity.startActivity(intent);
+            result.success(null);
+        } catch (Exception error) {
+            result.error("settingsUnavailable", error.getMessage(), null);
+        }
+    }
+}
+"""
+
 BUILD_GRADLE_KTS = pathlib.Path("android/app/build.gradle.kts")
 BUILD_GRADLE = pathlib.Path("android/app/build.gradle")
 
@@ -50,6 +194,23 @@ def patch_manifest(scheme: str) -> list[str]:
 
     lines = MANIFEST.read_text(encoding="utf-8").splitlines()
     changes: list[str] = []
+
+    # 0. Install permission, as the outermost child of <manifest>.
+    #    Without it Android silently refuses the install and the user sees
+    #    "nothing happens" after tapping «Установить».
+    if "android.permission.REQUEST_INSTALL_PACKAGES" not in "\n".join(lines):
+        for index, line in enumerate(lines):
+            if line.lstrip().startswith("<application"):
+                lines.insert(
+                    index,
+                    '    <!-- In-app updates: hand a downloaded APK to the installer. -->',
+                )
+                lines.insert(
+                    index + 1,
+                    '    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />',
+                )
+                changes.append("REQUEST_INSTALL_PACKAGES")
+                break
 
     # 1. <queries> right before <application>.
     if not any("<queries>" in line for line in lines):
@@ -116,6 +277,125 @@ def patch_manifest(scheme: str) -> list[str]:
     return changes
 
 
+def patch_provider() -> list[str]:
+    """Declares the update FileProvider inside <application>."""
+    lines = MANIFEST.read_text(encoding="utf-8").splitlines()
+    if FILE_PROVIDER_AUTHORITY in "\n".join(lines):
+        return []
+
+    for index, line in enumerate(lines):
+        if "<application" not in line:
+            continue
+        # The opening tag can span several lines: `<application` followed by
+        # android:label=… on its own lines. Inserting right after the first one
+        # would land inside the tag and break the manifest, so walk to the line
+        # that closes it.
+        insert_at = index + 1
+        while insert_at < len(lines) and ">" not in lines[insert_at - 1]:
+            insert_at += 1
+        lines[insert_at:insert_at] = PROVIDER_LINES
+        MANIFEST.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return ["FileProvider for update APKs"]
+    return []
+
+
+def write_update_paths() -> list[str]:
+    """Writes the FileProvider path map; only the update cache is shared."""
+    if UPDATE_PATHS.exists() and UPDATE_PATHS.read_text(encoding="utf-8") == UPDATE_PATHS_XML:
+        return []
+    UPDATE_PATHS.parent.mkdir(parents=True, exist_ok=True)
+    UPDATE_PATHS.write_text(UPDATE_PATHS_XML, encoding="utf-8")
+    return ["res/xml/update_paths.xml"]
+
+
+def write_java_plugin() -> list[str]:
+    """Writes the installer channel implementation."""
+    if JAVA_PLUGIN.exists() and JAVA_PLUGIN.read_text(encoding="utf-8") == JAVA_SOURCE:
+        return []
+    JAVA_PLUGIN.parent.mkdir(parents=True, exist_ok=True)
+    JAVA_PLUGIN.write_text(JAVA_SOURCE, encoding="utf-8")
+    return ["ApkInstallerPlugin.java"]
+
+
+def patch_main_activity() -> list[str]:
+    """Registers the installer channel on the Flutter engine.
+
+    The generated activity is tiny and comes in two shapes, both produced by
+    real Flutter templates:
+
+        class MainActivity : FlutterActivity() {}      // braces, empty body
+        class MainActivity: FlutterActivity()          // no braces at all
+
+    The second shape is what Flutter 3.24 writes. Appending code after it puts
+    the override at file scope, and Kotlin then refuses to compile with
+    «Modifier 'override' is not applicable to 'top level function'». So the
+    declaration itself is rewritten into a class body with the override inside.
+    """
+    if not MAIN_ACTIVITY.exists():
+        return []
+
+    text = MAIN_ACTIVITY.read_text(encoding="utf-8")
+    if "ApkInstallerPlugin" in text:
+        return []
+
+    original = text
+
+    imports = [
+        "import app.mellow.ApkInstallerPlugin",
+        "import io.flutter.embedding.engine.FlutterEngine",
+        "import io.flutter.plugin.common.MethodChannel",
+    ]
+    for line in imports:
+        if line not in text:
+            anchor = "import io.flutter.embedding.android.FlutterActivity"
+            if anchor in text:
+                text = text.replace(anchor, anchor + "\n" + line, 1)
+            else:
+                text = line + "\n" + text
+
+    override = (
+        "\n\n    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {\n"
+        "        super.configureFlutterEngine(flutterEngine)\n"
+        "        MethodChannel(\n"
+        "            flutterEngine.dartExecutor.binaryMessenger,\n"
+        "            ApkInstallerPlugin.CHANNEL,\n"
+        "        ).setMethodCallHandler(ApkInstallerPlugin(this))\n"
+        "    }\n"
+    )
+
+    # 1. A class body already exists: put the override before its closing brace.
+    declared = re.search(r"class\s+MainActivity[^\n{]*\{", text)
+    if declared is not None:
+        close = text.rfind("}")
+        if close > declared.end():
+            text = text[:close] + override + text[close:]
+        else:
+            # `{` without a matching `}` cannot happen in valid Kotlin, but do
+            # not produce broken code if it somehow does.
+            text = text + override
+
+        if text != original:
+            MAIN_ACTIVITY.write_text(text, encoding="utf-8")
+            return ["MainActivity registers the installer channel"]
+        return []
+
+    # 2. The brace-less template: turn the declaration into a real class body.
+    brace_less = re.search(
+        r"class\s+MainActivity\s*:\s*FlutterActivity\(\s*\)",
+        text,
+    )
+    if brace_less is None:
+        return []
+
+    declaration = "class MainActivity : FlutterActivity() {"
+    text = text[: brace_less.start()] + declaration + override + "}\n" + text[brace_less.end():]
+    # Whatever followed the old declaration (usually nothing but a newline).
+    text = re.sub(r"\n\s*\n}", "\n}", text)
+
+    MAIN_ACTIVITY.write_text(text, encoding="utf-8")
+    return ["MainActivity registers the installer channel"]
+
+
 def patch_gradle() -> list[str]:
     """Raises minSdk to 23 in either the Kotlin or the Groovy DSL."""
     for path in (BUILD_GRADLE_KTS, BUILD_GRADLE):
@@ -151,6 +431,10 @@ def main() -> None:
     args = parser.parse_args()
 
     changes = patch_manifest(args.scheme)
+    changes += patch_provider()
+    changes += write_update_paths()
+    changes += write_java_plugin()
+    changes += patch_main_activity()
     changes += patch_gradle()
 
     if changes:

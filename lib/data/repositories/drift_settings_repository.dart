@@ -20,6 +20,10 @@ class DriftSettingsRepository implements SettingsRepository {
   static const String _syncOnLaunchKey = 'sync_on_launch';
   static const String _blockImagesKey = 'block_external_images';
   static const String _appLockKey = 'app_lock_enabled';
+  static const String _updateCheckKey = 'update_check_enabled';
+  static const String _updateMobileKey = 'update_on_mobile_data';
+  static const String _updateNotifyKey = 'update_notifications_enabled';
+  static const String _updateCheckedKey = 'update_last_check_at';
 
   @override
   Stream<AppSettings> watchSettings() {
@@ -45,6 +49,11 @@ class DriftSettingsRepository implements SettingsRepository {
       _syncOnLaunchKey: settings.syncOnLaunch.toString(),
       _blockImagesKey: settings.blockExternalImages.toString(),
       _appLockKey: settings.appLockEnabled.toString(),
+      _updateCheckKey: settings.updateCheckEnabled.toString(),
+      _updateMobileKey: settings.updateOnMobileData.toString(),
+      _updateNotifyKey: settings.updateNotificationsEnabled.toString(),
+      if (settings.lastUpdateCheckAt != null)
+        _updateCheckedKey: settings.lastUpdateCheckAt!.toIso8601String(),
     };
 
     await _db.batch((batch) {
@@ -85,6 +94,13 @@ class DriftSettingsRepository implements SettingsRepository {
       blockExternalImages:
           _bool(values[_blockImagesKey]) ?? defaults.blockExternalImages,
       appLockEnabled: _bool(values[_appLockKey]) ?? defaults.appLockEnabled,
+      updateCheckEnabled:
+          _bool(values[_updateCheckKey]) ?? defaults.updateCheckEnabled,
+      updateOnMobileData:
+          _bool(values[_updateMobileKey]) ?? defaults.updateOnMobileData,
+      updateNotificationsEnabled: _bool(values[_updateNotifyKey]) ??
+          defaults.updateNotificationsEnabled,
+      lastUpdateCheckAt: _date(values[_updateCheckedKey]),
     );
   }
 
@@ -95,6 +111,9 @@ class DriftSettingsRepository implements SettingsRepository {
     }
     return null;
   }
+
+  DateTime? _date(String? raw) =>
+      raw == null ? null : DateTime.tryParse(raw);
 
   bool? _bool(String? raw) {
     if (raw == 'true') return true;

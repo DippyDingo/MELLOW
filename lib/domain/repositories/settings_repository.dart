@@ -21,6 +21,10 @@ class AppSettings {
     this.syncOnLaunch = true,
     this.blockExternalImages = true,
     this.appLockEnabled = false,
+    this.updateCheckEnabled = true,
+    this.updateOnMobileData = true,
+    this.updateNotificationsEnabled = true,
+    this.lastUpdateCheckAt,
   });
 
   final ThemePreference themePreference;
@@ -37,6 +41,18 @@ class AppSettings {
 
   final bool appLockEnabled;
 
+  /// Ask GitHub for a newer build at startup and every few hours.
+  final bool updateCheckEnabled;
+
+  /// Allow downloading a build over mobile data; otherwise Wi-Fi only.
+  final bool updateOnMobileData;
+
+  /// Show a system notification when a new build is found.
+  final bool updateNotificationsEnabled;
+
+  /// When the app last asked GitHub, so checks stay at most every six hours.
+  final DateTime? lastUpdateCheckAt;
+
   AppSettings copyWith({
     ThemePreference? themePreference,
     bool? focusModeEnabled,
@@ -48,6 +64,10 @@ class AppSettings {
     bool? syncOnLaunch,
     bool? blockExternalImages,
     bool? appLockEnabled,
+    bool? updateCheckEnabled,
+    bool? updateOnMobileData,
+    bool? updateNotificationsEnabled,
+    DateTime? lastUpdateCheckAt,
   }) {
     return AppSettings(
       themePreference: themePreference ?? this.themePreference,
@@ -61,6 +81,11 @@ class AppSettings {
       syncOnLaunch: syncOnLaunch ?? this.syncOnLaunch,
       blockExternalImages: blockExternalImages ?? this.blockExternalImages,
       appLockEnabled: appLockEnabled ?? this.appLockEnabled,
+      updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
+      updateOnMobileData: updateOnMobileData ?? this.updateOnMobileData,
+      updateNotificationsEnabled:
+          updateNotificationsEnabled ?? this.updateNotificationsEnabled,
+      lastUpdateCheckAt: lastUpdateCheckAt ?? this.lastUpdateCheckAt,
     );
   }
 
@@ -79,7 +104,11 @@ class AppSettings {
           other.notificationsFavoritesOnly == notificationsFavoritesOnly &&
           other.syncOnLaunch == syncOnLaunch &&
           other.blockExternalImages == blockExternalImages &&
-          other.appLockEnabled == appLockEnabled;
+          other.appLockEnabled == appLockEnabled &&
+          other.updateCheckEnabled == updateCheckEnabled &&
+          other.updateOnMobileData == updateOnMobileData &&
+          other.updateNotificationsEnabled == updateNotificationsEnabled &&
+          other.lastUpdateCheckAt == lastUpdateCheckAt;
 
   @override
   int get hashCode => Object.hash(
@@ -93,6 +122,10 @@ class AppSettings {
         syncOnLaunch,
         blockExternalImages,
         appLockEnabled,
+        updateCheckEnabled,
+        updateOnMobileData,
+        updateNotificationsEnabled,
+        lastUpdateCheckAt,
       );
 }
 

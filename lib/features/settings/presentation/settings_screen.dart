@@ -150,6 +150,47 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ],
           ),
+          const MellowSectionHeader('Обновления'),
+          _Group(
+            children: <Widget>[
+              SwitchListTile(
+                secondary: const Icon(Icons.system_update_alt),
+                title: const Text('Проверять обновления'),
+                subtitle: const Text(
+                  'Mellow сам узнаёт о новой сборке на GitHub',
+                ),
+                value: settings.updateCheckEnabled,
+                onChanged: ref
+                    .read(settingsControllerProvider.notifier)
+                    .setUpdateCheckEnabled,
+              ),
+              const Divider(height: 1, indent: 56),
+              SwitchListTile(
+                secondary: const Icon(Icons.wifi),
+                title: const Text('Скачивать по мобильной сети'),
+                subtitle: const Text(
+                  'Выключено — обновления качаются только через Wi-Fi',
+                ),
+                value: settings.updateOnMobileData,
+                onChanged: settings.updateCheckEnabled
+                    ? ref
+                        .read(settingsControllerProvider.notifier)
+                        .setUpdateOnMobileData
+                    : null,
+              ),
+              const Divider(height: 1, indent: 56),
+              SwitchListTile(
+                secondary: const Icon(Icons.notifications_active_outlined),
+                title: const Text('Уведомлять о новой сборке'),
+                value: settings.updateNotificationsEnabled,
+                onChanged: settings.updateCheckEnabled
+                    ? ref
+                        .read(settingsControllerProvider.notifier)
+                        .setUpdateNotificationsEnabled
+                    : null,
+              ),
+            ],
+          ),
           const MellowSectionHeader('О приложении'),
           _Group(
             children: <Widget>[

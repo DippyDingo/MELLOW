@@ -7,6 +7,7 @@ import 'package:mellow/core/theme/mellow_theme.dart';
 import 'package:mellow/core/utils/date_format.dart';
 import 'package:mellow/core/widgets/mellow_avatar.dart';
 import 'package:mellow/core/widgets/mellow_scaffold.dart';
+import 'package:mellow/core/widgets/update_banner.dart';
 import 'package:mellow/domain/entities/message_thread.dart';
 import 'package:mellow/features/conversations/application/thread_list_controller.dart';
 import 'package:mellow/features/contacts/application/contacts_controller.dart';
@@ -49,6 +50,7 @@ class ConversationsScreen extends ConsumerWidget {
             child: const _SearchField(),
           ),
           const _FocusModeBar(),
+          const UpdateBanner(),
           Expanded(
             child: threads.when(
               data: (items) {

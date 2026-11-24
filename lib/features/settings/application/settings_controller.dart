@@ -63,6 +63,15 @@ class SettingsController extends AsyncNotifier<AppSettings> {
     }
   }
 
+  /// The newest settings this app knows, synchronously.
+  ///
+  /// The stream behind [state] can lag one write behind while a save is in
+  /// flight, so a caller that acts right after a change (the update check runs
+  /// on resume, right after the user flips a switch) must read [_lastWritten]
+  /// first or it will act on the previous value.
+  AppSettings get current =>
+      _lastWritten ?? state.valueOrNull ?? AppSettings.defaults;
+
   Future<void> setThemePreference(ThemePreference preference) =>
       _update((s) => s.copyWith(themePreference: preference));
 
@@ -86,6 +95,18 @@ class SettingsController extends AsyncNotifier<AppSettings> {
 
   Future<void> setAppLockEnabled(bool enabled) =>
       _update((s) => s.copyWith(appLockEnabled: enabled));
+
+  Future<void> setUpdateCheckEnabled(bool enabled) =>
+      _update((s) => s.copyWith(updateCheckEnabled: enabled));
+
+  Future<void> setUpdateOnMobileData(bool enabled) =>
+      _update((s) => s.copyWith(updateOnMobileData: enabled));
+
+  Future<void> setUpdateNotificationsEnabled(bool enabled) =>
+      _update((s) => s.copyWith(updateNotificationsEnabled: enabled));
+
+  Future<void> markUpdateChecked(DateTime at) =>
+      _update((s) => s.copyWith(lastUpdateCheckAt: at));
 
   Future<void> reset() async {
     await _repository.reset();

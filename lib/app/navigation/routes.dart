@@ -23,5 +23,19 @@ abstract final class AppRoutes {
 
   static String thread(String id) => '/conversations/$id';
 
+  /// Reply to one stored message inside [threadId].
+  ///
+  /// The answered message travels as a query parameter: the composer needs its
+  /// sender, subject and `Message-ID`, and passing an id keeps the URL
+  /// shareable and the screen free of hidden state.
+  static String reply({required String threadId, required String messageId}) =>
+      Uri(
+        path: compose,
+        queryParameters: <String, String>{
+          'threadId': threadId,
+          'replyTo': messageId,
+        },
+      ).toString();
+
   static String contact(String id) => '/contacts/$id';
 }

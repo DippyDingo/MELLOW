@@ -8,7 +8,9 @@ name: Build installable APK
 # repository is overwritten by the generation step.
 #
 # Run it from the Actions tab ("Run workflow") or push to the arena branch.
-# The finished file is attached to the run as `mellow-debug-apk`.
+# The finished file is attached to the run as `mellow-debug-apk`, and also
+# published as a `build-<sha7>` release — that release is the update channel
+# the app reads itself (see docs/UPDATES.md).
 
 on:
   workflow_dispatch:
@@ -163,6 +165,56 @@ jobs:
       - name: Patch Android manifest
         run: python3 tool/platform/prepare_android.py --scheme "${{ steps.scheme.outputs.value }}"
 
+      # The update flow installs a new build over the old one, and Android only
+      # allows that when both are signed with the same key. Runners are fresh
+      # machines, so their default debug key differs every run and the install
+      # would fail with «Приложение не установлено». The key therefore comes
+      # from the repository secrets and is written where the Android Gradle
+      # plugin already looks for it — no Gradle edits, no extra tools.
+      - name: Restore the stable debug signing key
+        id: signing
+        env:
+          KEYSTORE_B64: ${{ secrets.MELLOW_DEBUG_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_B64}" ]; then
+            echo "::warning title=Signing key missing::MELLOW_DEBUG_KEYSTORE_B64 is not set, so this APK is signed with the runner's own debug key. Installing it over an earlier build may fail; see docs/UPDATES.md."
+            echo "key=runner" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p "$HOME/.android"
+          printf '%s' "${KEYSTORE_B64}" | base64 -d > "$HOME/.android/debug.keystore"
+
+          # Verify before building: AGP silently falls back to the runner key if
+          # this file is not a readable keystore, and the failure only shows up
+          # as "cannot install over the previous build" days later.
+          if ! keytool -list -keystore "$HOME/.android/debug.keystore" \
+              -storepass android -alias androiddebugkey >/dev/null 2>&1; then
+            echo "::error title=Bad keystore::MELLOW_DEBUG_KEYSTORE_B64 is not a \
+          readable JKS with alias androiddebugkey. Regenerate it with \
+          tool/platform/make_signing_key.sh --print-base64."
+            exit 1
+          fi
+
+          # Fingerprint of the certificate inside the keystore: two builds with
+          # different values cannot install over each other.
+          fingerprint="SHA-256 $(keytool -list -v \
+            -keystore "$HOME/.android/debug.keystore" -storepass android \
+            -alias androiddebugkey 2>/dev/null \
+            | awk -F': ' '/SHA256:/{gsub(/:/,"",$2); print tolower($2); exit}')"
+          echo "key=stable" >> "$GITHUB_OUTPUT"
+          echo "Using the repository signing key"
+          if [ -n "${fingerprint}" ]; then
+            echo "::notice title=Signing key::${fingerprint}"
+            {
+              echo "### Signing key"
+              echo '```'
+              echo "${fingerprint}"
+              echo '```'
+              echo "Two builds with different fingerprints cannot install over each other."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Build debug APK
         id: build
         run: |
@@ -201,6 +253,42 @@ jobs:
           path: build/app/outputs/flutter-apk/mellow-*-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      # The release is the update channel the app reads (docs/UPDATES.md).
+      # A tag per build makes "is there something newer than my sha?" a single
+      # API call, and the attached APK is what the app downloads.
+      # Only real pushes to the branch may publish: a pull-request run builds a
+      # synthetic merge commit that is never installable, and a release for it
+      # would push that phantom tag into the update channel.
+      - name: Publish release for the updater
+        if: success() && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA::7}"
+          tag="build-${short_sha}"
+          apk="build/app/outputs/flutter-apk/mellow-${short_sha}-debug.apk"
+
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release $tag already exists — uploading the APK into it"
+            gh release upload "$tag" "$apk" --repo "$GITHUB_REPOSITORY" --clobber
+            exit 0
+          fi
+
+          notes="Сборка ${short_sha} из ветки ${GITHUB_REF_NAME}.
+          Изменения: см. историю коммитов. Установка — docs/INSTALL.md.
+          Подпись: ${{ steps.signing.outputs.key == 'stable' && 'постоянный ключ Mellow' || 'debug-ключ раннера (может не встать поверх)' }}."
+
+          # No --prerelease on purpose: a prerelease makes /releases/latest
+          # answer 404, and that is exactly how the channel broke the first
+          # time. Normal release + the app reading the release list (see
+          # docs/UPDATES.md §3.1) keeps it working either way.
+          gh release create "$tag" "$apk" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Сборка ${short_sha}" \
+            --notes "$notes" \
+            --target "$GITHUB_SHA"
 
       # Same reason as in the check job: the build log may be unreachable, but
       # the commit comment is not.

@@ -6,6 +6,7 @@ import 'package:mellow/core/theme/mellow_theme.dart';
 import 'package:mellow/core/theme/theme_mode_resolver.dart';
 import 'package:mellow/features/settings/application/settings_controller.dart';
 import 'package:mellow/features/sync/application/sync_controller.dart';
+import 'package:mellow/features/updates/application/update_controller.dart';
 
 /// Root widget: themes, localisation and the router.
 ///
@@ -18,17 +19,36 @@ class MellowApp extends ConsumerStatefulWidget {
   ConsumerState<MellowApp> createState() => _MellowAppState();
 }
 
-class _MellowAppState extends ConsumerState<MellowApp> {
+class _MellowAppState extends ConsumerState<MellowApp>
+    with WidgetsBindingObserver {
   late final _router = createRouter();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // One best-effort sync at startup when the user asked for it. The provider
     // swallows failures: the first frame must never wait for the network.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(syncOnLaunchProvider);
+      // Update check comes after the first frame for the same reason, and it
+      // stays silent when the user turned checking off or checked recently.
+      ref.read(updateControllerProvider.notifier).check();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    // The six-hour rule lives in the controller, so a fast app switch does not
+    // turn into a burst of GitHub requests.
+    ref.read(updateControllerProvider.notifier).check();
   }
 
   @override

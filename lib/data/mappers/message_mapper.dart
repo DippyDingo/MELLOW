@@ -62,17 +62,24 @@ abstract final class MessageMapper {
     );
   }
 
+  /// [displayNames] maps a normalised address to the person's name, so a
+  /// conversation can show (and be searched by) "Мария Соколова" rather than
+  /// only her address.
   static MessageThread threadToEntity(
     ConversationRow row,
-    List<ParticipantRow> participants,
-  ) {
+    List<ParticipantRow> participants, {
+    Map<String, String> displayNames = const <String, String>{},
+  }) {
     return MessageThread(
       id: row.id,
       accountId: row.accountId,
       subject: row.subject,
       participants: participants
           .map(
-            (p) => EmailAddress(address: p.email),
+            (p) => EmailAddress(
+              address: p.email,
+              displayName: displayNames[p.email.toLowerCase()],
+            ),
           )
           .toList(growable: false),
       updatedAt: row.updatedAt,

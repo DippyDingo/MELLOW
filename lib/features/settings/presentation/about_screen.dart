@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mellow/core/theme/mellow_theme.dart';
 import 'package:mellow/core/utils/update_check.dart';
 import 'package:mellow/core/widgets/mellow_scaffold.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:mellow/core/widgets/update_banner.dart';
+import 'package:mellow/features/updates/application/update_controller.dart';
 
-/// About screen: version, product promise and honest limitations.
-class AboutScreen extends StatelessWidget {
+/// About screen: version, update state, product promise and honest limits.
+class AboutScreen extends ConsumerWidget {
   const AboutScreen({super.key});
 
   static const String version = '0.3.0';
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tokens = MellowColors.of(context);
     final textTheme = Theme.of(context).textTheme;
+    final UpdateState update = ref.watch(updateControllerProvider);
 
     return MellowScaffold(
       title: 'О приложении',
@@ -48,23 +51,32 @@ class AboutScreen extends StatelessWidget {
               style: textTheme.labelSmall?.copyWith(color: tokens.onSurfaceMuted),
             ),
           ),
+          const SizedBox(height: MellowSpacing.sm),
+          const UpdateBanner(),
           if (UpdateChannel.isConfigured)
             Center(
-              child: TextButton.icon(
-                onPressed: () => launchUrl(
-                  Uri.parse(UpdateChannel.actionsUrl),
-                  mode: LaunchMode.externalApplication,
-                ),
-                icon: const Icon(Icons.download_outlined, size: 16),
-                label: const Text('Скачать свежий APK'),
-              ),
+              child: update.phase == UpdatePhase.checking
+                  ? const Padding(
+                      padding: EdgeInsets.all(MellowSpacing.sm),
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : TextButton.icon(
+                      onPressed: () => ref
+                          .read(updateControllerProvider.notifier)
+                          .check(automatic: false),
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('Проверить обновления'),
+                    ),
             ),
           if (UpdateChannel.isConfigured)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: MellowSpacing.xl),
               child: Text(
-                'Тестовые сборки не обновляются сами: новый APK ставится '
-                'вручную поверх старого, данные сохраняются.',
+                _stateLabel(update),
                 textAlign: TextAlign.center,
                 style: textTheme.labelSmall?.copyWith(color: tokens.onSurfaceMuted),
               ),
@@ -92,5 +104,22 @@ class AboutScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// One honest line about where the update flow stands.
+  ///
+  /// Every branch is a fact the app knows: it never says «обновлений нет»
+  /// when the check failed, and never promises a silent install.
+  static String _stateLabel(UpdateState update) {
+    return switch (update.phase) {
+      UpdatePhase.checking => 'Проверяем GitHub…',
+      UpdatePhase.available => 'Доступна новая сборка. Обновление ставится '
+          'по подтверждению, данные сохраняются.',
+      UpdatePhase.downloading => 'Скачиваем обновление…',
+      UpdatePhase.downloaded => 'Обновление скачано и ждёт подтверждения.',
+      UpdatePhase.upToDate => 'Установлена последняя сборка.',
+      UpdatePhase.failed => update.message ?? 'Не удалось проверить обновления.',
+      UpdatePhase.idle => 'Обновления не проверялись.',
+    };
   }
 }

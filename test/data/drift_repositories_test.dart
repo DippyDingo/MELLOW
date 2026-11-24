@@ -443,6 +443,41 @@ void main() {
       expect(bySubject.single.id, 't1');
     });
 
+    test('search matches a participant name', () async {
+      await seedAccount();
+      await contacts.saveContact(
+        const Contact(
+          id: 'c1',
+          displayName: 'Мария Соколова',
+          addresses: <ContactEmail>[ContactEmail(email: 'maria@mail.ru')],
+        ),
+      );
+      await threads.saveThread(
+        MessageThread(
+          id: 't1',
+          accountId: 'a1',
+          subject: 'Планы',
+          participants: const <EmailAddress>[
+            EmailAddress(address: 'maria@mail.ru'),
+          ],
+          updatedAt: DateTime(2026, 11, 23, 10),
+        ),
+      );
+      await threads.replaceParticipants('t1', <ThreadParticipant>[
+        const ThreadParticipant(address: 'maria@mail.ru', contactId: 'c1'),
+      ]);
+
+      // The field promises "имя, тема или текст" (spec 2.7): a conversation is
+      // found by the person, and the name comes from the contact, not from the
+      // address alone.
+      final byName = await threads.getThreads(const ThreadFilter(query: 'сокол'));
+      expect(byName.single.id, 't1');
+      expect(byName.single.participants.single.displayName, 'Мария Соколова');
+
+      final byAddress = await threads.getThreads(const ThreadFilter(query: 'maria@'));
+      expect(byAddress.single.id, 't1');
+    });
+
     test('unread count aggregates across threads', () async {
       await seedAccount();
       await makeThread(id: 't1');
