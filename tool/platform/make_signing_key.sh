@@ -55,6 +55,11 @@ cert_fingerprint() {
     awk '{print $2}' "$fingerprint_file"
     return 0
   fi
+  # No dependencies: reads the certificate straight out of the JKS container.
+  if finger="$(python3 "$(dirname "$0")/jks_fingerprint.py" "$key_store" 2>/dev/null)"; then
+    printf '%s\n' "$finger" | awk '/^SHA-256/{gsub(/:/,""); print tolower($2)}'
+    return 0
+  fi
   if "${MELLOW_PYTHON:-python3}" - "$key_store" "$password" "$alias_name" <<'PY' 2>/dev/null
 import sys
 import jks
@@ -127,7 +132,13 @@ if [ ! -f "$fingerprint_file" ]; then
 fi
 
 echo "▸ certificate fingerprint:"
-echo "  SHA-256 ${cert_sha}"
+if [ -f "$key_store" ] && python3 "$(dirname "$0")/jks_fingerprint.py" "$key_store" >/dev/null 2>&1; then
+  python3 "$(dirname "$0")/jks_fingerprint.py" "$key_store" \
+    | sed 's/^SHA-1   /  SHA-1   /; s/^SHA-256 /  SHA-256 /'
+  echo "  The SHA-1 is what a Google Cloud OAuth client asks for."
+else
+  echo "  SHA-256 ${cert_sha}"
+fi
 echo "  Every build must report the same value, or updates cannot install over"
 echo "  each other."
 
