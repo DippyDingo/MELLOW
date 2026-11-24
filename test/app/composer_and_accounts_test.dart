@@ -9,6 +9,9 @@ import 'package:mellow/data/seed/demo_seed.dart';
 import 'package:mellow/domain/entities/account.dart';
 
 /// Walks the app the way a user would, starting from the shell.
+/// The composer autosaves 800 ms after a keystroke, and the default test
+/// binding fails a test whose timers are still pending. Every test in this file
+/// therefore ends with [settleTimers], which lets the save happen.
 Future<ProviderContainer> pumpApp(WidgetTester tester) async {
   final db = AppDatabase.inMemory();
   await DemoSeed.run(db);
@@ -20,6 +23,12 @@ Future<ProviderContainer> pumpApp(WidgetTester tester) async {
   );
   await tester.pumpAndSettle();
   return container;
+}
+
+/// Waits out the composer autosave and any follow-up frame.
+Future<void> settleTimers(WidgetTester tester) async {
+  await tester.pump(const Duration(seconds: 1));
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -49,6 +58,8 @@ void main() {
     await tester.enterText(find.byType(TextField).first, 'alex@example.com');
     await tester.pump();
     expect(find.text('Добавьте хотя бы одного получателя'), findsNothing);
+
+    await settleTimers(tester);
   });
 
   testWidgets('replying opens the composer with the recipient and subject',
@@ -66,6 +77,8 @@ void main() {
     expect(find.text('Новое сообщение'), findsNothing);
     expect(find.text('maria.sokolova@mail.ru'), findsOneWidget);
     expect(find.text('Re: Планы на выходные'), findsWidgets);
+
+    await settleTimers(tester);
   });
 
   testWidgets('closing a filled composer saves it as a draft', (tester) async {
@@ -86,6 +99,10 @@ void main() {
     await tester.pumpAndSettle();
     // Back on the list, where the draft now lives as a card.
     expect(find.text('Новое сообщение'), findsNothing);
+    // The draft is visible on the list, not silently dropped.
+    expect(find.textContaining('Черновик'), findsWidgets);
+
+    await settleTimers(tester);
   });
 
   testWidgets('add account screen detects the provider from the address',

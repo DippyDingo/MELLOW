@@ -385,8 +385,19 @@ class DriftThreadRepository implements ThreadRepository {
         );
   }
 
-  /// Finds a stored copy of [message] by provider id, then by RFC Message-ID.
+  /// Finds a stored copy of [message]: by local id first, then by provider id,
+  /// then by RFC Message-ID.
+  ///
+  /// The local id matters for edits to one row — a retried send and a saved
+  /// draft both come back with the id they already have, and without this check
+  /// the update would try to insert a second row with the same primary key.
   Future<MessageRow?> _findExisting(Message message) async {
+    final byId = await (_db.select(_db.messages)
+          ..where((t) => t.id.equals(message.id))
+          ..limit(1))
+        .getSingleOrNull();
+    if (byId != null) return byId;
+
     if (message.providerId != null) {
       final byProvider = await (_db.select(_db.messages)
             ..where(

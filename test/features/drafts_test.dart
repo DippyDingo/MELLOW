@@ -156,6 +156,18 @@ void main() {
       );
       await threads.upsertMessage(
         Message(
+          id: 'queued-1',
+          threadId: thread.id,
+          accountId: account.id,
+          from: EmailAddress(address: account.email),
+          to: <EmailAddress>[EmailAddress(address: 'a@b.c')],
+          sentAt: DateTime.utc(2026, 1, 5),
+          isOutgoing: true,
+          deliveryStatus: DeliveryStatus.queued,
+        ),
+      );
+      await threads.upsertMessage(
+        Message(
           id: 'queued-0',
           threadId: thread.id,
           accountId: account.id,
