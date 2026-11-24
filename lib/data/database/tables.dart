@@ -143,6 +143,12 @@ class Conversations extends Table {
 
   IntColumn get unreadCount => integer().withDefault(const Constant(0))();
   BoolColumn get isPinned => boolean().withDefault(const Constant(false))();
+
+  /// True when the newest message in the thread is a draft.
+  ///
+  /// Stored on the conversation so the list card can say «Черновик» without
+  /// loading every message; it is recomputed whenever a message changes.
+  BoolColumn get hasDraft => boolean().withDefault(const Constant(false))();
   BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
   BoolColumn get isMuted => boolean().withDefault(const Constant(false))();
 

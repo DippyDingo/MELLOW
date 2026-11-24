@@ -104,8 +104,8 @@ class GmailConnectController extends StateNotifier<GmailConnectState> {
     if (!isConfigured) {
       state = const GmailConnectState(
         step: GmailConnectStep.failed,
-        error: 'Gmail не настроен в этой сборке. Задайте GOOGLE_CLIENT_ID '
-            'через --dart-define (см. docs/MAIL_PROVIDERS.md).',
+        error: 'В этой сборке подключение Gmail недоступно. Это ограничение '
+            'сборки: она собрана без доступа к Google.',
       );
       return;
     }

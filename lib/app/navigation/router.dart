@@ -68,6 +68,7 @@ GoRouter createRouter({String initialLocation = AppRoutes.conversations}) {
           initialRecipient: state.uri.queryParameters['to'],
           threadId: state.uri.queryParameters['threadId'],
           replyToMessageId: state.uri.queryParameters['replyTo'],
+          draftId: state.uri.queryParameters['draft'],
         ),
       ),
       GoRoute(

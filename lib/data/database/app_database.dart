@@ -13,7 +13,7 @@ part 'app_database.g.dart';
 ///
 /// Every schema change bumps [mellowSchemaVersion] and adds a `fromNToM` step below.
 /// Migrations never drop user data silently.
-const int mellowSchemaVersion = 1;
+const int mellowSchemaVersion = 2;
 
 @DriftDatabase(
   tables: <Type>[
@@ -45,8 +45,11 @@ class AppDatabase extends _$AppDatabase {
           await _createIndexes();
         },
         onUpgrade: (Migrator m, int from, int to) async {
-          // Future migrations go here, e.g.:
-          // if (from < 2) await m.addColumn(messages, messages.snippet);
+          // 2: a draft is visible in the conversation list without loading
+          // every message of every thread.
+          if (from < 2) {
+            await m.addColumn(conversations, conversations.hasDraft);
+          }
         },
         beforeOpen: (OpeningDetails details) async {
           await customStatement('PRAGMA foreign_keys = ON');

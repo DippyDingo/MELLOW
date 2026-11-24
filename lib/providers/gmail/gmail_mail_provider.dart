@@ -94,7 +94,8 @@ class GmailMailProvider extends BaseMailProvider
   GmailAuthRequest buildAuthRequest({String? loginHint, String? stateOverride, String? codeVerifierOverride}) {
     if (!config.isGoogleConfigured) {
       throw const UnsupportedException(
-        'Gmail не настроен в этой сборке: задайте GOOGLE_CLIENT_ID',
+        'В этой сборке подключение Gmail недоступно: она собрана без '
+        'доступа к Google.',
       );
     }
 

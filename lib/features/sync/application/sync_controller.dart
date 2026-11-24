@@ -4,6 +4,7 @@ import 'package:mellow/core/config/app_config.dart';
 import 'package:mellow/core/errors/app_exception.dart';
 import 'package:mellow/domain/entities/account.dart';
 import 'package:mellow/features/accounts/application/accounts_controller.dart';
+import 'package:mellow/features/composer/application/outbox.dart';
 import 'package:mellow/features/settings/application/settings_controller.dart';
 import 'package:mellow/providers/contracts/mail_provider.dart';
 import 'package:mellow/providers/provider_factory.dart';
@@ -160,6 +161,16 @@ class SyncController extends StateNotifier<SyncScreenState> {
       }
     }
 
+    // A sync is the natural moment to retry queued mail: the network just
+    // proved it works, and the user is not waiting on anything.
+    if (synced > 0) {
+      try {
+        await _ref.read(outboxProvider).flush();
+      } catch (_) {
+        // The queue keeps the messages; the next sync or launch retries.
+      }
+    }
+
     state = SyncScreenState(
       result: SyncRunSummary(
         accounts: synced,
@@ -197,5 +208,19 @@ final syncOnLaunchProvider = FutureProvider<void>((ref) async {
     await ref.read(syncControllerProvider.notifier).syncNow();
   } catch (_) {
     // Surfaced by SyncController state; startup stays silent.
+  }
+});
+
+/// Sends anything that was queued while the phone had no network.
+///
+/// Runs on launch regardless of the «синхронизация при запуске» setting: a
+/// message the user already pressed «Отправить» on must not wait for a setting
+/// they never touched. Silent by design — the message simply changes state.
+final outboxOnLaunchProvider = FutureProvider<void>((ref) async {
+  await Future<void>.delayed(Duration.zero);
+  try {
+    await ref.read(outboxProvider).flush();
+  } catch (_) {
+    // Still queued; the next launch or sync retries.
   }
 });

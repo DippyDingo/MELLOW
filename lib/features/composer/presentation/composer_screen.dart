@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +11,7 @@ import 'package:mellow/core/widgets/mellow_scaffold.dart';
 import 'package:mellow/domain/entities/account.dart';
 import 'package:mellow/domain/entities/message.dart';
 import 'package:mellow/features/accounts/application/accounts_controller.dart';
+import 'package:mellow/features/composer/application/draft_store.dart';
 import 'package:mellow/features/composer/application/send_controller.dart';
 
 /// Smart Composer (spec 2.5).
@@ -27,6 +30,7 @@ class ComposerScreen extends ConsumerStatefulWidget {
     this.initialRecipient,
     this.threadId,
     this.replyToMessageId,
+    this.draftId,
   });
 
   final String? initialRecipient;
@@ -36,6 +40,9 @@ class ComposerScreen extends ConsumerStatefulWidget {
 
   /// Local id of the answered message; turns the screen into a reply.
   final String? replyToMessageId;
+
+  /// Draft being continued; `null` for a fresh composer.
+  final String? draftId;
 
   @override
   ConsumerState<ComposerScreen> createState() => _ComposerScreenState();
@@ -56,6 +63,18 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
   Message? _replyTo;
   bool _prefilled = false;
 
+  /// Id of the stored draft once it exists, so every save updates one row.
+  String? _draftId;
+
+  /// Debounces typing: a keystroke must not become a database write each time.
+  Timer? _autosaveTimer;
+
+  /// Set right before the screen closes after a successful send, so the draft
+  /// is not re-saved on the way out.
+  bool _finished = false;
+
+  static const Duration _autosaveDelay = Duration(milliseconds: 800);
+
   bool get _isReply => widget.replyToMessageId != null || widget.threadId != null;
 
   @override
@@ -70,10 +89,46 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
       // Loaded after the first frame: the provider needs a mounted tree.
       WidgetsBinding.instance.addPostFrameCallback((_) => _prefillReply());
     }
+    if (widget.draftId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadDraft());
+    }
+  }
+
+  /// Restores a draft exactly as it was left.
+  ///
+  /// Runs after the first frame because it reads the database, and never
+  /// overwrites text that is already on screen: a draft opened from a
+  /// notification while the user is typing must not delete a keystroke.
+  Future<void> _loadDraft() async {
+    final id = widget.draftId;
+    if (id == null) return;
+    final draft = await ref.read(draftStoreProvider).load(id);
+    if (!mounted || draft == null) return;
+
+    setState(() {
+      _draftId = draft.id;
+      if (_toController.text.trim().isEmpty) {
+        _toController.text = draft.to.join(', ');
+      }
+      if (_ccController.text.trim().isEmpty && draft.cc.isNotEmpty) {
+        _ccController.text = draft.cc.join(', ');
+        _showCc = true;
+      }
+      if (_subjectController.text.trim().isEmpty) {
+        _subjectController.text = draft.subject;
+      }
+      if (_bodyController.text.trim().isEmpty) {
+        _bodyController.text = draft.bodyText;
+      }
+    });
   }
 
   @override
   void dispose() {
+    _autosaveTimer?.cancel();
+    // The last keystrokes are the ones easiest to lose: fire the pending save
+    // now instead of waiting for a timer that will never run.
+    if (!_finished) unawaited(_flushDraft());
     _toController.dispose();
     _ccController.dispose();
     _subjectController.dispose();
@@ -144,6 +199,44 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
     return true;
   }
 
+  /// Schedules a save shortly after the user stops typing.
+  void _onEdited() {
+    setState(() {});
+    _autosaveTimer?.cancel();
+    _autosaveTimer = Timer(_autosaveDelay, () => unawaited(_flushDraft()));
+  }
+
+  /// Writes the current text into the draft row.
+  ///
+  /// Silent on failure by design: a draft that cannot be written must not
+  /// interrupt typing with a red banner. The text stays in the controller, and
+  /// the next keystroke tries again.
+  Future<void> _flushDraft() async {
+    if (_finished) return;
+    final account = ref.read(primaryAccountProvider);
+    if (account == null) return;
+    final hasContent = _toController.text.trim().isNotEmpty ||
+        _subjectController.text.trim().isNotEmpty ||
+        _bodyController.text.trim().isNotEmpty;
+    if (!hasContent && _draftId == null) return;
+
+    try {
+      final saved = await ref.read(draftStoreProvider).save(
+            account: account,
+            to: _addressesOf(_toController.text),
+            cc: _showCc ? _addressesOf(_ccController.text) : const <String>[],
+            subject: _subjectController.text.trim(),
+            bodyText: _bodyController.text,
+            threadId: widget.threadId,
+            replyToMessageId: widget.replyToMessageId,
+            existingDraftId: _draftId,
+          );
+      if (saved != null && mounted) _draftId = saved.id;
+    } catch (_) {
+      // Nothing to do: see the comment above.
+    }
+  }
+
   Future<void> _send() async {
     final account = ref.read(primaryAccountProvider);
     if (account == null) return;
@@ -166,6 +259,16 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
       replyToProviderMessageId: replyTo?.providerId,
     );
 
+    // The draft row becomes the sent message: drop it first so a failure
+    // cannot leave both a draft and a «Отправлено» copy of the same text.
+    _finished = true;
+    _autosaveTimer?.cancel();
+    final draftId = _draftId;
+    if (draftId != null) {
+      await ref.read(draftStoreProvider).delete(draftId);
+      _draftId = null;
+    }
+
     await ref.read(sendControllerProvider.notifier).send(draft);
     if (!mounted) return;
 
@@ -175,7 +278,24 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
         const SnackBar(content: Text('Письмо отправлено')),
       );
       _leaveAfterSend();
+      return;
     }
+    if (state.isQueued) {
+      // Honest and reassuring at once: it will go out on its own.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Нет связи. Письмо сохранено и уйдёт само, как только появится '
+            'интернет.',
+          ),
+          duration: Duration(seconds: 5),
+        ),
+      );
+      _leaveAfterSend();
+      return;
+    }
+    // Not sent: the text is still on screen, so autosave resumes.
+    _finished = false;
   }
 
   List<String> _addressesOf(String raw) =>
@@ -212,7 +332,10 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
           IconButton(
             tooltip: 'Вложения',
             icon: const Icon(Icons.attach_file),
-            onPressed: () => _notImplemented(context, 'Вложения появятся в спринте 05'),
+            onPressed: () => _notImplemented(
+              context,
+              'Прикреплять файлы Mellow пока не умеет. Это в работе.',
+            ),
           ),
           Padding(
             padding: const EdgeInsets.only(right: MellowSpacing.md),
@@ -255,7 +378,10 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
             keyboardType: TextInputType.emailAddress,
             // An error shown for the previous value is stale as soon as the
             // user edits the field: keep it only until the next keystroke.
-            onChanged: (_) => setState(() => _recipientError = null),
+            onChanged: (_) {
+              setState(() => _recipientError = null);
+              _onEdited();
+            },
             decoration: InputDecoration(
               labelText: 'Кому',
               hintText: 'name@example.com',
@@ -273,13 +399,14 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
             TextField(
               controller: _ccController,
               keyboardType: TextInputType.emailAddress,
+              onChanged: (_) => _onEdited(),
               decoration: const InputDecoration(labelText: 'Копия'),
             ),
           ],
           const SizedBox(height: MellowSpacing.md),
           TextField(
             controller: _subjectController,
-            onChanged: (_) => setState(() {}),
+            onChanged: (_) => _onEdited(),
             textCapitalization: TextCapitalization.sentences,
             decoration: InputDecoration(
               labelText: 'Тема',
@@ -294,7 +421,7 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
             autofocus: !_isReply,
             keyboardType: TextInputType.multiline,
             textCapitalization: TextCapitalization.sentences,
-            onChanged: (_) => setState(() {}),
+            onChanged: (_) => _onEdited(),
             decoration: const InputDecoration(
               hintText: 'Напишите сообщение…',
               border: InputBorder.none,
@@ -331,9 +458,10 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
       return 'Аккаунт не подключён — подключите ящик, иначе отправлять некуда.';
     }
     if (account.provider != MailProviderKind.gmail) {
-      return 'Отправка из этого ящика появится в спринте 06. Сейчас подержан Gmail.';
+      return 'Из этого ящика Mellow пока отправить не может — сейчас '
+          'работает только Gmail.';
     }
-    return 'Письмо уйдёт из ${account.email} сразу. Вложения появятся в спринте 05.';
+    return 'Письмо уйдёт из ${account.email} сразу после нажатия «Отправить».';
   }
 
   /// True when the user typed anything that is not saved anywhere yet.
@@ -357,24 +485,41 @@ class _ComposerScreenState extends ConsumerState<ComposerScreen> {
       if (context.mounted) Navigator.of(context).pop();
       return;
     }
+
+    // Nothing is lost any more, so the dialog only has to be honest about what
+    // happens next — and it names where the draft can be found again.
     final discard = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Закрыть без сохранения?'),
-        content: const Text('Текст сообщения будет потерян.'),
+        title: const Text('Сохранить черновик?'),
+        content: const Text(
+          'Письмо останется в «Диалогах» с пометкой «Черновик». '
+          'Открыть его можно в любой момент и продолжить.',
+        ),
         actions: <Widget>[
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Продолжить'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Удалить'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Закрыть'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Сохранить'),
           ),
         ],
       ),
     );
-    if (discard == true && context.mounted) Navigator.of(context).pop();
+    if (discard == true) {
+      // Explicitly discarded: the stored copy goes away too.
+      _finished = true;
+      final id = _draftId;
+      if (id != null) {
+        await ref.read(draftStoreProvider).delete(id);
+        _draftId = null;
+      }
+    } else {
+      await _flushDraft();
+    }
+    if (context.mounted) Navigator.of(context).pop();
   }
 
   void _notImplemented(BuildContext context, String message) {

@@ -11,8 +11,8 @@ import 'package:mellow/providers/discovery/provider_discovery.dart';
 /// the provider and routes to the matching authorisation flow.
 ///
 /// Gmail opens the real OAuth 2.0 + PKCE flow. Other providers are recognised
-/// but explicitly not connectable yet (Sprint 06) — the screen says so instead
-/// of pretending to save an account.
+/// but explicitly not connectable yet — the screen says so instead of
+/// pretending to save an account.
 class AddAccountScreen extends StatefulWidget {
   const AddAccountScreen({super.key});
 
@@ -146,9 +146,9 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
             Text('Способ входа: $method'),
             const SizedBox(height: MellowSpacing.lg),
             const Text(
-              'Сейчас в приложении работает только Gmail. Этот провайдер '
-              'подключается в Sprint 06 — экран честно сообщает об этом, '
-              'вместо того чтобы сохранить настройки без работающего входа.',
+              'Сейчас Mellow подключает только Gmail. Этот сервис появится '
+              'позже — мы не сохраняем настройки, с которыми вход всё равно не '
+              'сработает.',
             ),
             const SizedBox(height: MellowSpacing.xl),
             FilledButton(

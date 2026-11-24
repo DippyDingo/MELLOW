@@ -147,6 +147,8 @@ class _ThreadScreenState extends ConsumerState<ThreadScreen> {
                               messageId: message.id,
                             ),
                           ),
+                          onDraftTap: (draft) =>
+                              context.push(AppRoutes.draft(draft.id)),
                         ),
                   loading: () => const Center(child: CircularProgressIndicator()),
                   error: (error, _) => MellowEmptyState(
@@ -181,10 +183,14 @@ class _MessageList extends StatelessWidget {
     required this.messages,
     required this.threadId,
     required this.onReply,
+    required this.onDraftTap,
   });
 
   final List<Message> messages;
   final String threadId;
+
+  /// Opens a stored draft in the composer.
+  final void Function(Message draft) onDraftTap;
 
   /// Answer the *tapped* message rather than the newest one: replying to an
   /// older message in a long thread is a normal thing to want.
@@ -218,6 +224,8 @@ class _MessageList extends StatelessWidget {
           isOwn: ownAddresses.isEmpty ||
               ownAddresses.contains(message.from.address),
           onReply: message.isDraft ? null : () => onReply(message),
+          // A draft is unfinished work, not a letter: it belongs in the editor.
+          onTap: message.isDraft ? () => onDraftTap(message) : null,
         ),
       );
     }
@@ -271,12 +279,16 @@ class _MessageBubble extends StatelessWidget {
     required this.message,
     required this.isOwn,
     this.onReply,
+    this.onTap,
   });
 
   final Message message;
 
   /// Long-press target: answers this message, not the newest one.
   final VoidCallback? onReply;
+
+  /// Tap target; used by drafts, which open in the editor.
+  final VoidCallback? onTap;
 
   /// True when the message was sent by the user's own account address.
   final bool isOwn;
@@ -293,6 +305,7 @@ class _MessageBubble extends StatelessWidget {
     return Align(
       alignment: outgoing ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
+        onTap: onTap,
         onLongPress: onReply,
         child: Container(
           constraints: BoxConstraints(maxWidth: maxWidth),
@@ -332,9 +345,7 @@ class _MessageBubble extends StatelessWidget {
                       ),
                     ),
                   Text(
-                    message.isDraft
-                        ? 'черновик'
-                        : MellowDates.time(message.sentAt),
+                    _statusText(message),
                     style: textTheme.labelSmall?.copyWith(
                       color: (outgoing
                               ? tokens.bubbleOutgoingText
@@ -392,7 +403,21 @@ class _ReplyBar extends StatelessWidget {
   final String threadId;
   final List<Message> messages;
 
+  /// The draft in this conversation, if any: it always wins over a new reply,
+  /// because it is unfinished work the user already started.
+  Message? get _draft {
+    for (final message in messages.reversed) {
+      if (message.isDraft) return message;
+    }
+    return null;
+  }
+
   void _open(BuildContext context) {
+    final draft = _draft;
+    if (draft != null) {
+      context.push(AppRoutes.draft(draft.id));
+      return;
+    }
     final target = messages.isEmpty ? null : messages.last;
     if (target == null) {
       context.push('${AppRoutes.compose}?threadId=$threadId');
@@ -419,12 +444,14 @@ class _ReplyBar extends StatelessWidget {
             child: TextField(
               readOnly: true,
               onTap: () => _open(context),
-              decoration: const InputDecoration(hintText: 'Ответить…'),
+              decoration: InputDecoration(
+                hintText: _draft == null ? 'Ответить…' : 'Продолжить черновик…',
+              ),
             ),
           ),
           const SizedBox(width: MellowSpacing.sm),
           IconButton.filled(
-            tooltip: 'Ответить',
+            tooltip: _draft == null ? 'Ответить' : 'Продолжить черновик',
             onPressed: () => _open(context),
             icon: const Icon(Icons.send_outlined),
           ),
@@ -432,4 +459,18 @@ class _ReplyBar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// What the small line under a message says.
+///
+/// A queued message is not a failure and not a mystery: it says it is on its
+/// way. A draft says so instead of showing a timestamp it does not have yet.
+String _statusText(Message message) {
+  if (message.isDraft) return 'черновик';
+  return switch (message.deliveryStatus) {
+    DeliveryStatus.queued => 'отправляется…',
+    DeliveryStatus.sending => 'отправляется…',
+    DeliveryStatus.failed => 'не отправлено',
+    _ => MellowDates.time(message.sentAt),
+  };
 }

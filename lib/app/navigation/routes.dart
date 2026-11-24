@@ -37,5 +37,13 @@ abstract final class AppRoutes {
         },
       ).toString();
 
+  /// Continue a stored draft.
+  ///
+  /// Drafts are ordinary messages, so they open in the composer that knows how
+  /// to save them back rather than in a read-only screen.
+  static String draft(String draftId) =>
+      Uri(path: compose, queryParameters: <String, String>{'draft': draftId})
+          .toString();
+
   static String contact(String id) => '/contacts/$id';
 }

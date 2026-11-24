@@ -211,8 +211,18 @@ class _ThreadTile extends ConsumerWidget {
         ? thread.subject
         : thread.lastMessagePreview;
 
+    // A draft has no sender to show, so the card leads with what is happening
+    // instead of a person's name: «Черновик» is the only thing that matters
+    // when scanning the list for something half-written.
+    final titleText = thread.hasDraft
+        ? 'Черновик${thread.subject.trim().isEmpty ? '' : ': ${thread.subject}'}'
+        : title;
+    final subtitleText = thread.hasDraft
+        ? subtitle
+        : (thread.subject.isEmpty ? subtitle : '${thread.subject} · $subtitle');
+
     return ListTile(
-      onTap: () => context.push(AppRoutes.thread(thread.id)),
+      onTap: () => _openThread(context, ref),
       onLongPress: () => _showThreadActions(context, ref),
       leading: Stack(
         clipBehavior: Clip.none,
@@ -234,13 +244,16 @@ class _ThreadTile extends ConsumerWidget {
         children: <Widget>[
           Expanded(
             child: Text(
-              title,
+              titleText,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: textTheme.titleMedium?.copyWith(
                 color: tokens.onSurface,
-                fontWeight:
-                    thread.hasUnread ? FontWeight.w700 : FontWeight.w600,
+                fontWeight: thread.hasUnread
+                    ? FontWeight.w700
+                    : (thread.hasDraft ? FontWeight.w600 : FontWeight.w600),
+                fontStyle:
+                    thread.hasDraft ? FontStyle.italic : FontStyle.normal,
               ),
             ),
           ),
@@ -257,7 +270,7 @@ class _ThreadTile extends ConsumerWidget {
           children: <Widget>[
             Expanded(
               child: Text(
-                thread.subject.isEmpty ? subtitle : '${thread.subject} · $subtitle',
+                subtitleText,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: textTheme.bodyMedium?.copyWith(
@@ -294,6 +307,28 @@ class _ThreadTile extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Opens the conversation — or the composer, when it only holds a draft.
+  ///
+  /// Tapping a half-written letter and landing on an empty reading screen used
+  /// to look like the draft had been lost. Now the tap continues writing.
+  Future<void> _openThread(BuildContext context, WidgetRef ref) async {
+    if (!thread.hasDraft) {
+      context.push(AppRoutes.thread(thread.id));
+      return;
+    }
+    final messages = await ref.read(threadRepositoryProvider).getMessages(
+          thread.id,
+        );
+    final drafts = messages.where((message) => message.isDraft).toList();
+    if (!context.mounted) return;
+    if (drafts.isEmpty) {
+      // The flag was stale: fall back to the conversation instead of nothing.
+      context.push(AppRoutes.thread(thread.id));
+      return;
+    }
+    context.push(AppRoutes.draft(drafts.last.id));
   }
 
   Future<void> _showThreadActions(BuildContext context, WidgetRef ref) async {

@@ -15,6 +15,7 @@ class MessageThread {
     this.lastMessagePreview = '',
     this.unreadCount = 0,
     this.isPinned = false,
+    this.hasDraft = false,
     this.isArchived = false,
     this.isMuted = false,
     this.contactId,
@@ -36,6 +37,9 @@ class MessageThread {
   final int unreadCount;
 
   final bool isPinned;
+
+  /// True when the newest message in the conversation is a draft.
+  final bool hasDraft;
   final bool isArchived;
   final bool isMuted;
 
@@ -60,6 +64,7 @@ class MessageThread {
     String? lastMessagePreview,
     int? unreadCount,
     bool? isPinned,
+    bool? hasDraft,
     bool? isArchived,
     bool? isMuted,
     String? contactId,
@@ -74,6 +79,7 @@ class MessageThread {
       lastMessagePreview: lastMessagePreview ?? this.lastMessagePreview,
       unreadCount: unreadCount ?? this.unreadCount,
       isPinned: isPinned ?? this.isPinned,
+      hasDraft: hasDraft ?? this.hasDraft,
       isArchived: isArchived ?? this.isArchived,
       isMuted: isMuted ?? this.isMuted,
       contactId: contactId ?? this.contactId,

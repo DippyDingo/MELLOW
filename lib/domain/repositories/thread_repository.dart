@@ -141,6 +141,17 @@ abstract interface class ThreadRepository {
     String? threadId,
   });
 
+  /// Outgoing messages still waiting for the network, oldest first.
+  ///
+  /// The outbox reads this on every tick; ordering by `sent_at` keeps the
+  /// order the user pressed «Отправить» in.
+  Future<List<Message>> queuedOutgoing();
+
+  /// Deletes one message, dropping its conversation when nothing is left.
+  ///
+  /// Used for drafts: a discarded draft must not linger as an empty card.
+  Future<void> deleteMessage(String messageId, {String? threadId});
+
   Future<void> setThreadPinned(String threadId, {required bool pinned});
 
   Future<void> setThreadArchived(String threadId, {required bool archived});

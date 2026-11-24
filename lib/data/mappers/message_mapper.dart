@@ -86,6 +86,7 @@ abstract final class MessageMapper {
       lastMessagePreview: row.lastMessagePreview,
       unreadCount: row.unreadCount,
       isPinned: row.isPinned,
+      hasDraft: row.hasDraft,
       isArchived: row.isArchived,
       isMuted: row.isMuted,
       contactId: row.contactId,
@@ -104,6 +105,7 @@ abstract final class MessageMapper {
       lastMessagePreview: Value(thread.lastMessagePreview),
       unreadCount: Value(thread.unreadCount),
       isPinned: Value(thread.isPinned),
+      hasDraft: Value(thread.hasDraft),
       isArchived: Value(thread.isArchived),
       isMuted: Value(thread.isMuted),
     );

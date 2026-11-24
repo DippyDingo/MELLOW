@@ -390,6 +390,30 @@ class DriftThreadRepository implements ThreadRepository {
   }
 
   @override
+  Future<List<Message>> queuedOutgoing() async {
+    final rows = await (_db.select(_db.messages)
+          ..where(
+            (t) => t.deliveryStatus.equals(DeliveryStatus.queued.name) &
+                t.isDraft.equals(false),
+          )
+          ..orderBy(<OrderingTerm Function(Messages)>[
+            (t) => OrderingTerm(expression: t.sentAt),
+          ]))
+        .get();
+    return rows.map(MessageMapper.toEntity).toList(growable: false);
+  }
+
+  @override
+  Future<void> deleteMessage(String messageId, {String? threadId}) async {
+    final message = await getMessage(messageId);
+    if (message == null) return;
+    final conversation = threadId ?? message.threadId;
+    await (_db.delete(_db.messages)..where((t) => t.id.equals(messageId))).go();
+    await _refreshThreadCounters(conversation);
+    await _dropThreadIfEmpty(conversation);
+  }
+
+  @override
   Future<void> setThreadPinned(String threadId, {required bool pinned}) async {
     await _setThreadFlag(
       threadId,
@@ -513,6 +537,7 @@ class DriftThreadRepository implements ThreadRepository {
         unreadCount: Value(unread),
         updatedAt: Value(last.sentAt),
         lastMessagePreview: Value(last.preview),
+        hasDraft: Value(last.isDraft),
       ),
     );
   }

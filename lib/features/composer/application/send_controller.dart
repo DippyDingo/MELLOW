@@ -57,6 +57,7 @@ class SendState {
     this.isSending = false,
     this.error,
     this.sentMessageId,
+    this.queuedMessageId,
     this.failedMessageId,
   });
 
@@ -69,16 +70,26 @@ class SendState {
   /// Local id of the stored copy once the server accepted the message.
   final String? sentMessageId;
 
+  /// Local id of a message that is safely queued and will be sent by itself
+  /// once the network is back. Not an error: the user does not have to retry.
+  final String? queuedMessageId;
+
   /// Local id of a copy that is stored but was refused by the server. A retry
   /// overwrites this row, so one message never becomes two.
   final String? failedMessageId;
 
   bool get isSent => sentMessageId != null;
 
+  bool get isQueued => queuedMessageId != null;
+
+  /// True when the composer may close: either sent or safely queued.
+  bool get isFinished => isSent || isQueued;
+
   SendState copyWith({
     bool? isSending,
     String? error,
     String? sentMessageId,
+    String? queuedMessageId,
     String? failedMessageId,
     bool clearError = false,
     bool clearFailed = false,
@@ -87,6 +98,7 @@ class SendState {
       isSending: isSending ?? this.isSending,
       error: clearError ? null : (error ?? this.error),
       sentMessageId: sentMessageId ?? this.sentMessageId,
+      queuedMessageId: queuedMessageId ?? this.queuedMessageId,
       failedMessageId:
           clearFailed ? null : (failedMessageId ?? this.failedMessageId),
     );
@@ -122,7 +134,8 @@ class SendController extends StateNotifier<SendState> {
     }
     if (account.provider != MailProviderKind.gmail) {
       state = const SendState(
-        error: 'Отправка из этого ящика появится в спринте 06. Сейчас поддержан Gmail.',
+        error: 'Из этого ящика Mellow пока отправить не может — сейчас '
+            'работает только Gmail.',
       );
       return;
     }
@@ -205,6 +218,23 @@ class SendController extends StateNotifier<SendState> {
       _ref.invalidate(accountsProvider);
       state = SendState(sentMessageId: localId);
     } catch (error) {
+      // A transient failure is not the user's problem: the message stays in
+      // the conversation as `queued` and the outbox sends it by itself. Only a
+      // refusal needs a decision from the person in front of the screen.
+      final transient = error is MailProviderException
+          ? error.isTransient || error.statusCode == null
+          : error is! AccountAuthException && error is! AppException;
+
+      if (transient) {
+        await repositories.setDeliveryStatus(
+          localId,
+          DeliveryStatus.queued,
+          threadId: threadId,
+        );
+        state = SendState(queuedMessageId: localId);
+        return;
+      }
+
       await repositories.setDeliveryStatus(
         localId,
         DeliveryStatus.failed,

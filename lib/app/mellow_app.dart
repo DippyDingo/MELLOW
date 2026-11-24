@@ -31,6 +31,9 @@ class _MellowAppState extends ConsumerState<MellowApp>
     // swallows failures: the first frame must never wait for the network.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(syncOnLaunchProvider);
+      // Whatever was queued while the phone had no network goes out now,
+      // without the user opening anything or pressing «Повторить».
+      ref.read(outboxOnLaunchProvider);
       // Update check comes after the first frame for the same reason, and it
       // stays silent when the user turned checking off or checked recently.
       ref.read(updateControllerProvider.notifier).check();

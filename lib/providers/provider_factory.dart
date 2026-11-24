@@ -30,11 +30,12 @@ class MailProviderFactory {
       case MailProviderKind.mailRu:
       case MailProviderKind.imap:
         throw const UnsupportedException(
-          'IMAP/SMTP появится в Sprint 06. Сейчас поддержан Gmail.',
+          'Другие почтовые сервисы Mellow пока не подключает. Сейчас '
+          'работает только Gmail.',
         );
       case MailProviderKind.outlook:
         throw const UnsupportedException(
-          'Outlook (Microsoft Graph) появится в Sprint 06.',
+          'Outlook Mellow пока не подключает. Сейчас работает только Gmail.',
         );
       case MailProviderKind.demo:
         throw const UnsupportedException('Демо-аккаунт не синхронизируется.');
