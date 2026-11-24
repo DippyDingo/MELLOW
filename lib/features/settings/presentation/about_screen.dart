@@ -10,7 +10,8 @@ import 'package:mellow/features/updates/application/update_controller.dart';
 class AboutScreen extends ConsumerWidget {
   const AboutScreen({super.key});
 
-  static const String version = '0.3.0';
+  /// Kept in step with `pubspec.yaml`; the settings screen shows it as «Версия».
+  static const String version = '1.0.0';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
