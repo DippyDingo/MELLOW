@@ -116,23 +116,23 @@ class Outbox {
           : provider.sendMessage(_outgoing(account, message)));
       await _mark(message, DeliveryStatus.sent);
       return OutboxResult.sent;
+    } on NetworkException {
+      _scheduleRetry(message.id);
+      return OutboxResult.waiting;
     } on MailProviderException catch (error) {
-      // 429 and 5xx are the server saying «later»; everything else with a
-      // status, and every auth error, needs the user.
-      if (error.isTransient || error.statusCode == null) {
+      // 429 and 5xx are the server saying «later»; anything the server decided
+      // with a status of its own needs the user.
+      if (error.isTransient) {
         _scheduleRetry(message.id);
         return OutboxResult.waiting;
       }
       await _mark(message, DeliveryStatus.failed);
       return OutboxResult.refused;
-    } on AccountAuthException {
+    } on AppException {
+      // Auth, storage or validation: all of these need a human. Silently
+      // retrying would bury the reason instead of showing it.
       await _mark(message, DeliveryStatus.failed);
       return OutboxResult.refused;
-    } on AppException {
-      // Could not even connect: most often the network is back but the token
-      // refresh failed. Not the user's problem to fix — keep it queued.
-      _scheduleRetry(message.id);
-      return OutboxResult.waiting;
     } finally {
       await provider.disconnect();
     }

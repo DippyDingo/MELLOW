@@ -58,6 +58,15 @@ final class MailProviderException extends AppException {
   bool get isCursorExpired => statusCode == 404 || statusCode == 410;
 }
 
+/// The device could not reach the provider: no network, DNS failure, timeout.
+///
+/// Kept separate from [MailProviderException] because the reaction differs: a
+/// mail that failed to go out because of this is retried by the outbox, while a
+/// refusal from the server is shown to the user.
+final class NetworkException extends AppException {
+  const NetworkException(super.message, {super.cause, super.stackTrace});
+}
+
 /// Invalid user input (email address, subject limits, ...).
 final class ValidationException extends AppException {
   const ValidationException(super.message);

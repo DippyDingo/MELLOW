@@ -260,7 +260,7 @@ void main() {
         );
 
     final state = container.read(sendControllerProvider);
-    expect(state.error, contains('спринте 06'));
+    expect(state.error, contains('работает только Gmail'));
     expect(provider.sent, isEmpty);
   });
 }

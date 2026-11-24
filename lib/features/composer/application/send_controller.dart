@@ -218,12 +218,11 @@ class SendController extends StateNotifier<SendState> {
       _ref.invalidate(accountsProvider);
       state = SendState(sentMessageId: localId);
     } catch (error) {
-      // A transient failure is not the user's problem: the message stays in
-      // the conversation as `queued` and the outbox sends it by itself. Only a
-      // refusal needs a decision from the person in front of the screen.
-      final transient = error is MailProviderException
-          ? error.isTransient || error.statusCode == null
-          : error is! AccountAuthException && error is! AppException;
+      // Only «there is no network» is queued: the message stays in the
+      // conversation and the outbox sends it by itself. Anything the server
+      // decided is shown, because retrying it forever would be a lie.
+      final transient = error is NetworkException ||
+          (error is MailProviderException && error.isTransient);
 
       if (transient) {
         await repositories.setDeliveryStatus(

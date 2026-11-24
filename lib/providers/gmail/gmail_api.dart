@@ -234,7 +234,7 @@ class GmailApi {
     try {
       response = await request().timeout(timeout);
     } on Exception catch (error) {
-      throw MailProviderException('Нет связи с Gmail', cause: error);
+      throw NetworkException('Нет связи с Gmail', cause: error);
     }
 
     if (response.statusCode == 401 && refreshCallback != null) {
@@ -244,7 +244,7 @@ class GmailApi {
       try {
         response = await request().timeout(timeout);
       } on Exception catch (error) {
-        throw MailProviderException('Нет связи с Gmail', cause: error);
+        throw NetworkException('Нет связи с Gmail', cause: error);
       }
     }
 

@@ -533,6 +533,26 @@ class DriftThreadRepository implements ThreadRepository {
         .where((m) => !m.isRead && !m.isOutgoing && !m.isDraft)
         .length;
     final last = messages.last;
+    // A brand-new draft is stored before its conversation exists, so the
+    // counters create the row when it is missing instead of silently doing
+    // nothing (which left an invisible draft behind).
+    final existing = await (_db.select(_db.conversations)
+          ..where((t) => t.id.equals(threadId)))
+        .getSingleOrNull();
+    if (existing == null) {
+      await _db.into(_db.conversations).insert(
+            ConversationsCompanion.insert(
+              id: threadId,
+              accountId: last.accountId,
+              subject: Value(last.subject),
+              updatedAt: Value(last.sentAt),
+              lastMessagePreview: Value(last.preview),
+              unreadCount: Value(unread),
+              hasDraft: Value(last.isDraft),
+            ),
+          );
+      return;
+    }
     await (_db.update(_db.conversations)..where((t) => t.id.equals(threadId))).write(
       ConversationsCompanion(
         unreadCount: Value(unread),

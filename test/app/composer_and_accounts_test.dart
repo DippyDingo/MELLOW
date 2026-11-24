@@ -68,7 +68,7 @@ void main() {
     expect(find.text('Re: Планы на выходные'), findsWidgets);
   });
 
-  testWidgets('closing a filled composer asks for confirmation', (tester) async {
+  testWidgets('closing a filled composer saves it as a draft', (tester) async {
     await pumpApp(tester);
 
     await tester.tap(find.byType(FloatingActionButton));
@@ -78,11 +78,14 @@ void main() {
     await tester.tap(find.byIcon(Icons.close));
     await tester.pumpAndSettle();
 
-    expect(find.text('Закрыть без сохранения?'), findsOneWidget);
+    // The dialog no longer asks «потерять ли текст»: the text is kept, and the
+    // only choice left is whether to keep it.
+    expect(find.text('Сохранить черновик?'), findsOneWidget);
 
-    await tester.tap(find.text('Продолжить'));
+    await tester.tap(find.text('Сохранить'));
     await tester.pumpAndSettle();
-    expect(find.text('Новое сообщение'), findsOneWidget);
+    // Back on the list, where the draft now lives as a card.
+    expect(find.text('Новое сообщение'), findsNothing);
   });
 
   testWidgets('add account screen detects the provider from the address',

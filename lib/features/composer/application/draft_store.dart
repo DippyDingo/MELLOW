@@ -89,7 +89,7 @@ class DraftStore {
       from: EmailAddress(address: account.email),
       to: to.map((address) => EmailAddress(address: address)).toList(),
       cc: cc.map((address) => EmailAddress(address: address)).toList(),
-      subject: subject,
+      subject: subject.trim(),
       bodyText: bodyText,
       inReplyTo: null,
       sentAt: now,
@@ -101,17 +101,10 @@ class DraftStore {
       deliveryStatus: DeliveryStatus.draft,
     );
 
+    // One write is enough: the repository maintains the conversation counters
+    // and creates the conversation when it is new, so a draft can never end up
+    // stored but invisible in the list.
     final stored = await _threads.upsertMessage(message);
-
-    // The conversation has to exist for the card to appear. A brand-new draft
-    // gets its own; a reply reuses the conversation it answers.
-    final thread = await _threads.getThread(stored.threadId);
-    if (thread == null) {
-      await _threads.createThreadForOutgoing(
-        message: stored,
-        subject: subject.trim().isEmpty ? '(без темы)' : subject,
-      );
-    }
 
     return ComposerDraft(
       id: stored.id,
@@ -119,7 +112,7 @@ class DraftStore {
       accountId: account.id,
       to: to,
       cc: cc,
-      subject: subject,
+      subject: subject.trim(),
       bodyText: bodyText,
       updatedAt: now,
       replyToMessageId: replyToMessageId,
