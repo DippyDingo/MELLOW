@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mellow/app/di/providers.dart';
+import 'package:mellow/features/composer/application/send_controller.dart';
 import 'package:mellow/core/errors/app_exception.dart';
 import 'package:mellow/domain/entities/account.dart';
 import 'package:mellow/domain/entities/message.dart';

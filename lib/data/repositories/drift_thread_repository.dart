@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:mellow/core/utils/email_address.dart';
 import 'package:mellow/data/database/app_database.dart';
+import 'package:mellow/data/database/tables.dart';
 import 'package:mellow/data/mappers/message_mapper.dart';
 import 'package:mellow/domain/entities/message.dart';
 import 'package:mellow/domain/entities/message_thread.dart';

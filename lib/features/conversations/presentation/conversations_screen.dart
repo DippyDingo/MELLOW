@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -222,7 +224,9 @@ class _ThreadTile extends ConsumerWidget {
         : (thread.subject.isEmpty ? subtitle : '${thread.subject} · $subtitle');
 
     return ListTile(
-      onTap: () => _openThread(context, ref),
+      // `onTap` ignores the returned Future by contract; the guard is explicit
+      // so the lint does not have to guess.
+      onTap: () => unawaited(_openThread(context, ref)),
       onLongPress: () => _showThreadActions(context, ref),
       leading: Stack(
         clipBehavior: Clip.none,

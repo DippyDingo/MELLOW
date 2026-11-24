@@ -5,7 +5,6 @@ import 'package:mellow/data/repositories/drift_account_repository.dart';
 import 'package:mellow/data/repositories/drift_thread_repository.dart';
 import 'package:mellow/domain/entities/account.dart';
 import 'package:mellow/domain/entities/message.dart';
-import 'package:mellow/domain/repositories/thread_repository.dart';
 import 'package:mellow/features/composer/application/draft_store.dart';
 
 /// Drafts are the difference between «написал и не потерял» and «написал зря».
